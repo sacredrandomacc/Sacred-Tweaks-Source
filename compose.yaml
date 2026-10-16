@@ -1,0 +1,43 @@
+services:
+  api:
+    build: .
+    command: ["python", "-m", "server", "--host", "0.0.0.0", "--port", "8765", "--db", "/data/sacred.db", "--trusted-proxy", "172.30.90.3/32"]
+    restart: unless-stopped
+    volumes:
+      - sacred-data:/data
+    expose:
+      - '8765'
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+    networks:
+      private:
+        ipv4_address: 172.30.90.2
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    environment:
+      SACRED_DOMAIN: ${SACRED_DOMAIN:?Set SACRED_DOMAIN in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - api
+    networks:
+      private:
+        ipv4_address: 172.30.90.3
+networks:
+  private:
+    ipam:
+      config:
+        - subnet: 172.30.90.0/24
+volumes:
+  sacred-data:
+  caddy-data:
+  caddy-config:

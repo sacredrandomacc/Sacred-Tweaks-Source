@@ -1,0 +1,19 @@
+# Specification review
+
+Reviewed the initial implementation (`fd776b2...d9471db`) against `SPECIFICATION.md` and `CONTRACT.md`. Static review only; the parent already ran 76 passing tests. Windows packaging, hosting and actual-game validation gaps are excluded here.
+
+1. **P1 — Restoration requires a previous successful login in this process.** `web/app.js:129–135` provides no restoration entry on the authentication screen, and `renderShell` at `web/app.js:104` unconditionally reads `state.session.user`. After restarting with an expired/revoked license, a ban, or no internet, members cannot reach their existing backups through the application. This violates §5's unconditional restoration requirement despite the native exemption being correct. Add an unauthenticated restore screen reachable on startup and exercise restore with no session and an unavailable backend.
+
+2. **P2 — Reconnect is a dead action.** `desktop/bridge.py:97–105,184–188` discards the bearer token when renewal fails; `web/app.js:231` then attempts a heartbeat with that discarded credential. Every displayed Reconnect attempt necessarily returns unauthorized. Route this action into a new login flow, or implement a clearly bounded reauthorization flow that cannot revive a revoked/expired session. Keep macros disabled after successful login.
+
+3. **P2 — Macro safety stops leave the displayed state stale.** Native focus loss, keyboard emergency stop and input errors stop execution (`desktop/native.py:437–456`), but the bridge's polling only emits changes to `game_running` (`desktop/bridge.py:202–209`). The macro screen reads status only when rendered (`web/app.js:190–193`); even the existing `detail.macro` listener updates state without updating visible controls (`web/app.js:327`). Consequently the screen can say Enabled after a safety stop, and the next toggle attempts another disable. Publish native status changes and refresh the status/button without discarding edited form fields. Verify keyboard emergency stop and foreground loss update the visible state.
+
+4. **P2 — Available CPU/RAM measurements are never shown.** `desktop/native.py:625–629` records CPU/RAM usage, sampling interval and source limitations, but `web/app.js:208` renders only name/FPS/frame time/date/notes. §10 requires usage information where supported. Expose the recorded usage and interval, explicitly label unavailable samples, and preserve the system-wide/manual-source distinctions.
+
+5. **P2 — Saved appearance does not survive restart.** `desktop/native.py:631–638` writes `theme.json`; `web/app.js:333` expects `bootstrap.theme`, but `desktop/bridge.py:59–60` never supplies it. A saved lightweight mode/intensity/accent resets to animated defaults on every launch, and reduced motion is never persisted at all. Load validated saved preferences during bootstrap, persist the explicit reduced-motion choice, and apply them before rendering decorative effects.
+
+## Resolution by implementer
+
+The five findings were addressed: unauthenticated restore has its own shell and a sign-in-screen entry point; reconnect now requires fresh sign-in; native status events update macro status without discarding edited fields; history displays available CPU/RAM plus unavailable GPU values; bootstrap loads validated theme/reduced-motion preferences. The sidebar connection indicator also updates on disconnection.
+
+Python regression and browser scenarios passed, including restoration before any login, preserving an unsaved macro field across a native stop event, and returning to sign-in after disconnection. Major member and Manager screenshots, all tier welcomes, menus, settings preview, license/account dialogs and error states were inspected by the implementer. These browser checks use test-only fixtures and do not establish native Windows behavior.

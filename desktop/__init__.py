@@ -1,0 +1,1 @@
+"""Sacred Tweaks desktop client."""

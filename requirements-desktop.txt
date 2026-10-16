@@ -1,0 +1,2 @@
+# Verified published versions at build preparation time; Windows-only runtime.
+pywebview==6.2.1
