@@ -1,4 +1,4 @@
 {
-  "api_url": "https://api.example.com",
+  "api_url": "https://sacred-tweaks-api.vercel.app",
   "allow_local_http": false
 }

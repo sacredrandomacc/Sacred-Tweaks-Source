@@ -1,0 +1,34 @@
+<Page x:Class="SacredOverlay.OverlayPage" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+ <Grid x:Name="Surface" Background="#EE11121D" Padding="20">
+  <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Spacing="14">
+   <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+    <StackPanel><TextBlock Text="SACRED / OVERLAY" FontWeight="Bold" FontSize="20" Foreground="#BDA8FF"/><TextBlock x:Name="Status" Text="Pair with your desktop app" TextWrapping="Wrap" FontSize="12"/></StackPanel>
+    <Button Grid.Column="1" Content="STOP" Click="Stop_Click" Background="#873C50" Margin="12,0,0,0"/>
+   </Grid>
+   <StackPanel x:Name="Body" Spacing="14">
+    <TextBlock Text="Gameplay automation is cheating under Epic’s rules. Account bans and tournament disqualification are possible. Detection likelihood is unknown." TextWrapping="Wrap" Foreground="#FFCB91" FontSize="12"/>
+    <CheckBox x:Name="RiskAccepted" Content="I understand the cheat and ban risk"/>
+    <StackPanel x:Name="PairPanel" Spacing="8">
+     <TextBlock Text="In desktop Macro studio, choose Pair Game Bar widget." TextWrapping="Wrap"/>
+     <TextBox x:Name="Port" Header="Local port" InputScope="Number" MaxLength="5"/>
+     <PasswordBox x:Name="PairCode" Header="Temporary pairing code" MaxLength="100"/>
+     <Button Content="Connect to desktop" Click="Pair_Click"/>
+    </StackPanel>
+    <GridView x:Name="Cards" IsItemClickEnabled="True" ItemClick="Card_Click" SelectionMode="None" HorizontalAlignment="Stretch">
+     <GridView.ItemTemplate><DataTemplate><Border Background="#242334" CornerRadius="10" Padding="14" Width="170" Margin="0,0,6,6"><StackPanel Spacing="5"><TextBlock Text="{Binding Group}" FontSize="10" Foreground="#BDA8FF"/><TextBlock Text="{Binding Name}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap"/></StackPanel></Border></DataTemplate></GridView.ItemTemplate>
+    </GridView>
+    <TextBlock x:Name="Description" TextWrapping="Wrap" FontSize="12"/>
+    <StackPanel x:Name="Fields" Spacing="8"/>
+    <StackPanel Orientation="Horizontal" Spacing="8"><Button Content="Save" Click="Save_Click"/><Button Content="Enable" Click="Enable_Click"/><Button Content="Disable" Click="Stop_Click"/></StackPanel>
+    <TextBlock Text="Opening Game Bar while a macro is active stops it on focus loss. Save first, then enable, close Game Bar, and use your activation bind. One macro at a time." TextWrapping="Wrap" FontSize="12"/>
+    <TextBlock Text="WIDGET SETTINGS" FontWeight="Bold"/>
+    <ComboBox x:Name="Hotkey" Header="Expand / collapse key" SelectedIndex="0" SelectionChanged="Hotkey_Changed"><ComboBoxItem Content="Tab"/><ComboBoxItem Content="F9"/><ComboBoxItem Content="F10"/></ComboBox>
+    <TextBlock Text="Tab also reaches Fortnite. Change it if it conflicts. Use Win+G to interact with the widget; pin it to keep it visible." TextWrapping="Wrap" FontSize="12"/>
+    <Slider x:Name="OpacityControl" Header="Panel opacity" Minimum="40" Maximum="100" Value="94" ValueChanged="Opacity_Changed"/>
+    <ComboBox x:Name="Accent" Header="Accent" SelectedIndex="0" SelectionChanged="Accent_Changed"><ComboBoxItem Content="Violet"/><ComboBoxItem Content="Blue"/><ComboBoxItem Content="Gold"/></ComboBox>
+    <Button Content="Disconnect widget" Click="Disconnect_Click"/>
+    <TextBlock Text="© 2026 Sacred LLC. All rights reserved." Foreground="#AAA6B9" FontSize="11"/>
+   </StackPanel>
+  </StackPanel></ScrollViewer>
+ </Grid>
+</Page>

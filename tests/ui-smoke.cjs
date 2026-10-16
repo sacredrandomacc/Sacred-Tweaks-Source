@@ -8,8 +8,8 @@ const root = path.resolve(__dirname, '..');
 const screenshots = process.env.SACRED_SCREENSHOTS || path.join(root, 'artifacts', 'screenshots');
 fs.mkdirSync(screenshots, {recursive:true});
 const fixture = ({mode, tier}) => {
-  const features = ['single_edit','performance','measurements','themes','potato','filter_keys','owner_presets','drag','advanced','profiles','beta'];
-  const floors = [0,0,0,0,1,2,2,3,3,3,3];
+  const features = ['single_edit','performance','measurements','themes','potato','filter_keys','owner_presets','drag','advanced','profiles','beta','prefire','pickup','wall_replace','auto_build','mantle','quick_reset','floor_cone'];
+  const floors = [0,0,0,0,1,2,2,3,3,3,3,3,3,3,3,3,3,3];
   const level = ['Core','Plus','Pro','Elite'].indexOf(tier);
   let macro = {kind:'single_edit',enabled:false,active:false,available:true,game_running:false,reason:'Disabled after login',config:{activation:'F',edit:'E',select:'MOUSE1',confirm:'E',emergency:'F8',step_delay_ms:20,repeat_ms:150,confirm_mode:'manual',game_auto_confirm:false}};
   const session = {user:{id:mode==='manager'?1:2,username:mode==='manager'?'TestOwner':'TestMember',role:mode==='manager'?'owner':'member'},tier,permissions:Object.fromEntries(features.map((f,i)=>[f,mode==='manager'||level>=floors[i]])),enforced:{},overrides:{},expires_at:null,lease_seconds:25,welcome:{}};
@@ -170,6 +170,16 @@ const fixture = ({mode, tier}) => {
         await page.screenshot({path:path.join(screenshots,'member-Elite-settings-preview.png'),fullPage:true});
         await page.locator('[data-action="close-modal"]').first().click();
         await page.locator('nav [data-nav="macros"]').click();
+        for(const kind of ['prefire','pickup','wall_replace','auto_build','mantle','quick_reset','floor_cone']) {
+          await page.locator(`[data-kind="${kind}"]`).click();
+          await page.locator('form[data-form="extended-macro"]').waitFor();
+          assert.match(await page.locator('main').innerText(),/Detection likelihood is unknown/);
+          await page.locator('form[data-form="extended-macro"] button[type="submit"]').click();
+          await page.waitForTimeout(100);
+          const last=await page.evaluate(()=>window.__calls.filter(c=>c.action==='macro_configure').at(-1));
+          assert.equal(last.data.kind,kind);
+          await page.screenshot({path:path.join(screenshots,`member-Elite-${kind}.png`),fullPage:true});
+        }
         await page.locator('[data-kind="drag"]').click();
         await page.screenshot({path:path.join(screenshots,'member-Elite-drag.png'),fullPage:true});
         await page.locator('#edit').fill('X');

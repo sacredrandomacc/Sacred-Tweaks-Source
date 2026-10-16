@@ -15,3 +15,6 @@
 @media(prefers-reduced-motion:reduce){.hero-art,.auth-art-center{translate:none}}
 
 .topbar>.brand{padding:0}
+
+/* Copyright (c) 2026 Sacred LLC. All rights reserved. */
+.macro-catalog{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:20px 0 28px}.macro-card{display:flex;flex-direction:column;gap:10px;text-align:left;padding:18px;border:1px solid #343048;border-radius:14px;background:#15131e;color:#f3f0ff;cursor:pointer}.macro-card:hover,.macro-card.selected{border-color:var(--accent,#a78bfa);background:#252032}.macro-card small{color:#b8a4e4;text-transform:uppercase;font-size:10px;letter-spacing:1.3px}.macro-card span{font-size:11px;color:#aaa4bc}.macro-card strong{font-size:14px}

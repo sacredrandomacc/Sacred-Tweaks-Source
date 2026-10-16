@@ -53,6 +53,7 @@ class Api:
         self._window = None
         self._transport = transport or self._http
         self._thread = None
+        self._overlay = None
 
     def bootstrap(self):
         preferences = {}
@@ -108,6 +109,8 @@ class Api:
             if expected_generation is not None and expected_generation != self._generation:
                 return
             self._generation += 1
+            if self._overlay:
+                self._overlay.revoke()
             self._token = self._session = None
             self._deadline = 0
             self._native.stop(reason)
@@ -245,6 +248,12 @@ class Api:
                 with self._lock:
                     if not self._token or self._clock() >= self._deadline:
                         raise ApiError("Sign in to use this tool.", "unauthorized", 401)
+            if action == 'overlay_pair':
+                from desktop.overlay import OverlayServer
+                with self._lock:
+                    if self._overlay is None:
+                        self._overlay = OverlayServer(self)
+                    return {'ok':True,'data':self._overlay.pair()}
             result = self._native.call(action, payload)
             return {"ok": True, "data": result}
         except Exception as exc:
@@ -253,6 +262,8 @@ class Api:
     def _close(self):
         with self._lock:
             token = self._token
+        if self._overlay:
+            self._overlay.close()
         self._shutdown.set()
         self._clear("Application closed")
         self._native.close()

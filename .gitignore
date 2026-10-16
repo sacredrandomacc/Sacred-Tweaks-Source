@@ -15,3 +15,10 @@ artifacts/
 *.db-*
 *.sqlite*
 .vercel/
+
+# Windows widget build outputs
+gamebar/bin/
+gamebar/obj/
+gamebar/AppPackages/
+*.pfx
+*.cer

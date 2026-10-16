@@ -1,0 +1,31 @@
+name: Windows apps and Game Bar
+on:
+  workflow_dispatch:
+  push:
+    branches: ['codex/macros-gamebar']
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build desktop apps
+        shell: pwsh
+        run: ./build-windows.ps1 -SkipSmokeTest
+      - uses: microsoft/setup-msbuild@v2
+      - name: Compile Game Bar widget
+        shell: pwsh
+        run: msbuild gamebar/SacredOverlay.csproj /restore /p:Configuration=Debug /p:Platform=x64 /p:AppxPackageSigningEnabled=false /p:GenerateAppxPackageOnBuild=true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Sacred-Windows-and-Overlay
+          path: |
+            dist/*.zip
+            gamebar/bin/x64/Debug/AppX/**
+            gamebar/AppPackages/**
+            docs/GAME-BAR.md
+          if-no-files-found: error
