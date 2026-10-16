@@ -33,7 +33,7 @@ class Row(dict):
 
 
 def row_factory(cursor):
-    names = [column.name for column in cursor.description]
+    names = [column.name for column in cursor.description] if cursor.description else []
     return lambda values: Row(zip(names, values))
 
 
