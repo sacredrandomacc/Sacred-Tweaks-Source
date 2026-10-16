@@ -6,6 +6,7 @@ using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Gaming.XboxGameBar;
+using Microsoft.Gaming.XboxGameBar.Input;
 using Windows.Data.Json;
 using Windows.Storage;
 using Windows.System;

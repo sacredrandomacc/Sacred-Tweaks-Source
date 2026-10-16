@@ -25,6 +25,8 @@
     <Page Include="OverlayPage.xaml"><Generator>MSBuild:Compile</Generator></Page>
     <AppxManifest Include="Package.appxmanifest" />
     <Content Include="Assets\*.png" />
+    <Content Include="..\LICENSE"><Link>LICENSE.txt</Link></Content>
+    <Content Include="..\THIRD-PARTY-NOTICES.md"><Link>THIRD-PARTY-NOTICES.md</Link></Content>
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Gaming.XboxGameBar" Version="7.2.240903001" />

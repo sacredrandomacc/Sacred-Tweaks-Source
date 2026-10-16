@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Sacred LLC. All rights reserved. See LICENSE.
 """Authenticated desktop boundary. The renderer never receives bearer tokens."""
 import json
 import os

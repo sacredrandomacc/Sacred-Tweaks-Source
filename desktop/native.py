@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Sacred LLC. All rights reserved. See LICENSE.
 """Native boundary: allowlisted local operations, Windows input and lease watchdog.
 
 No process injection, game memory reads, anti-cheat bypass or hidden settings.

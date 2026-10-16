@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Sacred LLC. All rights reserved. See LICENSE.
 """Deterministic, nonblocking macro state machine. No keyboard history is kept.
 
 The driver feeds only activation/emergency events and monotonic times. Every
