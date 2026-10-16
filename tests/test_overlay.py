@@ -1,4 +1,5 @@
 import json
+import socket
 import unittest
 import urllib.request
 import urllib.error
@@ -31,4 +32,18 @@ class OverlayTests(unittest.TestCase):
     def test_arbitrary_actions_cannot_reach_api(self):
         with self.assertRaises(urllib.error.HTTPError) as e:self.request({'action':'export_recovery'})
         self.assertEqual(e.exception.code,400)
+        self.assertEqual(self.api.calls,[])
+
+    def test_revocation_rejects_body_delivered_after_rotation(self):
+        body=json.dumps({'action':'macro_enable','payload':{'enabled':True}}).encode()
+        with socket.create_connection(('127.0.0.1',self.pair['port']),timeout=3) as client:
+            headers=(f"POST /command HTTP/1.1\r\nHost: 127.0.0.1:{self.pair['port']}\r\n"
+                     f"Authorization: Bearer {self.pair['token']}\r\nContent-Length: {len(body)}\r\n\r\n").encode()
+            client.sendall(headers)
+            client.settimeout(.3)
+            with self.assertRaises(socket.timeout):client.recv(1)
+            self.server.revoke()
+            client.settimeout(3)
+            client.sendall(body)
+            self.assertIn(b'403',client.recv(4096).split(b'\r\n',1)[0])
         self.assertEqual(self.api.calls,[])

@@ -253,7 +253,7 @@ class Api:
                 from desktop.overlay import OverlayServer
                 with self._lock:
                     if self._overlay is None:
-                        self._overlay = OverlayServer(self)
+                        self._overlay = OverlayServer(self, authorization_lock=self._lock)
                     return {'ok':True,'data':self._overlay.pair()}
             result = self._native.call(action, payload)
             return {"ok": True, "data": result}

@@ -27,7 +27,7 @@ namespace SacredOverlay {
   private XboxGameBarWidget widget;
   private XboxGameBarHotkeyWatcher watcher;
   private string token, endpoint, selected;
-  private bool refreshing;
+  private bool refreshing, preferencesLoaded;
   private JsonObject catalog=new JsonObject(), permissions=new JsonObject(), current=new JsonObject();
   private readonly Dictionary<string,FrameworkElement> inputs=new Dictionary<string,FrameworkElement>();
   private static readonly MacroCard[] Macros={
@@ -52,6 +52,7 @@ namespace SacredOverlay {
    if(values.ContainsKey("opacity")) OpacityControl.Value=Convert.ToDouble(values["opacity"]);
    if(values.ContainsKey("accent")) Accent.SelectedIndex=Convert.ToInt32(values["accent"]);
    if(values.ContainsKey("hotkey")) Hotkey.SelectedIndex=Convert.ToInt32(values["hotkey"]);
+   preferencesLoaded=true;
    ConfigureHotkey();
   }
   private async Task<JsonObject> Command(string action,JsonObject payload=null) {
@@ -135,8 +136,8 @@ namespace SacredOverlay {
     watcher.HotkeySetStateChanged+=async(s,a)=>{if(a.HotkeySetDown)await Dispatcher.RunAsync(CoreDispatcherPriority.Normal,()=>Body.Visibility=Body.Visibility==Visibility.Visible?Visibility.Collapsed:Visibility.Visible);};watcher.Start();
    }catch(Exception ex){Status.Text="Shortcut unavailable. Use Win+G. "+ex.Message;}
   }
-  private void Hotkey_Changed(object sender,SelectionChangedEventArgs e){if(Hotkey==null)return;ApplicationData.Current.LocalSettings.Values["hotkey"]=Hotkey.SelectedIndex;ConfigureHotkey();}
-  private void Opacity_Changed(object sender,RangeBaseValueChangedEventArgs e){if(Surface==null)return;var color=((SolidColorBrush)Surface.Background).Color;color.A=(byte)(255*e.NewValue/100);Surface.Background=new SolidColorBrush(color);ApplicationData.Current.LocalSettings.Values["opacity"]=e.NewValue;}
-  private void Accent_Changed(object sender,SelectionChangedEventArgs e){if(Accent==null||Cards==null)return;var color=Accent.SelectedIndex==1?Color.FromArgb(255,100,190,255):Accent.SelectedIndex==2?Color.FromArgb(255,240,202,110):Color.FromArgb(255,189,168,255);Cards.Foreground=new SolidColorBrush(color);ApplicationData.Current.LocalSettings.Values["accent"]=Accent.SelectedIndex;}
+  private void Hotkey_Changed(object sender,SelectionChangedEventArgs e){if(Hotkey==null)return;if(preferencesLoaded)ApplicationData.Current.LocalSettings.Values["hotkey"]=Hotkey.SelectedIndex;ConfigureHotkey();}
+  private void Opacity_Changed(object sender,RangeBaseValueChangedEventArgs e){if(Surface==null)return;var color=((SolidColorBrush)Surface.Background).Color;color.A=(byte)(255*e.NewValue/100);Surface.Background=new SolidColorBrush(color);if(preferencesLoaded)ApplicationData.Current.LocalSettings.Values["opacity"]=e.NewValue;}
+  private void Accent_Changed(object sender,SelectionChangedEventArgs e){if(Accent==null||Cards==null)return;var color=Accent.SelectedIndex==1?Color.FromArgb(255,100,190,255):Accent.SelectedIndex==2?Color.FromArgb(255,240,202,110):Color.FromArgb(255,189,168,255);Cards.Foreground=new SolidColorBrush(color);if(preferencesLoaded)ApplicationData.Current.LocalSettings.Values["accent"]=Accent.SelectedIndex;}
  }
 }
