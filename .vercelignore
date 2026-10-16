@@ -1,0 +1,14 @@
+.git
+.venv
+build
+dist
+data
+artifacts
+tests
+desktop
+web
+docs
+.env*
+*.db
+*.sqlite*
+__pycache__

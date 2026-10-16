@@ -24,10 +24,16 @@ class ServiceTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.path = Path(self.tmp.name) / 'db.sqlite3'
         self.now = 1800000000.0
-        self.svc = Service(self.path, clock=lambda: self.now, password_cost=1024)
+        self.svc = self.make_service()
         setup = self.svc.bootstrap_owner('owner', 'Owner-password-124!')
         self.owner_setup = setup
         self.owner = self.call('POST', '/v1/auth/login', {'username': 'owner', 'password': 'Owner-password-124!', 'device_id': 'owner-device-12345678', 'totp': totp(setup['totp_secret'], self.now)})['token']
+
+    def make_service(self):
+        return Service(self.path, clock=lambda: self.now, password_cost=1024)
+
+    def database_text(self):
+        return self.path.read_bytes().decode("latin1")
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -58,7 +64,7 @@ class ServiceTests(unittest.TestCase):
         self.assertEqual(len(winners), 1)
         self.assertEqual(winners[0]['expires_at'], self.now + 2 * 86400)
         self.assertTrue(all(status in (200, 409) for status, _ in results))
-        self.assertNotIn(key, self.path.read_bytes().decode('latin1'))
+        self.assertNotIn(key, self.database_text())
 
     def test_permission_overrides_wait_for_next_login_and_enforced_settings(self):
         s = self.register()
@@ -108,7 +114,7 @@ class ServiceTests(unittest.TestCase):
         body = {'username': 'member', 'reset_token': result['reset_token'], 'new_password': 'Reset-password-123!'}
         self.call('POST', '/v1/auth/recover', body)
         self.call('POST', '/v1/auth/recover', body, status=401)
-        self.assertNotIn(result['reset_token'], self.path.read_bytes().decode('latin1'))
+        self.assertNotIn(result['reset_token'], self.database_text())
 
     def test_recovery_regeneration_invalidates_old_set(self):
         s = self.register()
