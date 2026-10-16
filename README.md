@@ -61,3 +61,8 @@ python -m unittest discover -s tests -v
 Backend tests use isolated temporary SQLite databases and a deliberately cheaper constructor-only password cost. Production CLI always uses the stronger default. Browser checks live in `tests/ui-smoke.cjs` and require Playwright/Chromium; their fixtures are test-only and are not bundled into the desktop apps.
 
 See `docs/DEPLOYMENT.md`, `docs/OWNER-GUIDE.md`, and `docs/MEMBER-GUIDE.md`.
+
+## Permanent hosted backend
+
+For Vercel with persistent PostgreSQL, follow [the hosted setup guide](docs/VERCEL.md).
+The Windows app build is separate from the hosted API.

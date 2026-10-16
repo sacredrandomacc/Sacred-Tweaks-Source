@@ -17,11 +17,22 @@ def main(argv=None):
     parser.add_argument('--port', type=int, default=8765)
     parser.add_argument('--trusted-proxy', action='append', default=[], metavar='CIDR', help='Trusted reverse proxy IP/CIDR; repeatable. Never trust an unrestricted range.')
     operation = parser.add_mutually_exclusive_group()
+    operation.add_argument('--init-db', action='store_true', help='Initialize PostgreSQL schema using DATABASE_URL, then exit')
     operation.add_argument('--bootstrap-owner', metavar='USERNAME', help='Create the initial owner interactively, then exit')
     operation.add_argument('--reset-owner-device', action='store_true', help='Server-operator recovery: clear owner device registration and sessions, then exit')
     args = parser.parse_args(argv)
     os.umask(0o077)
-    service = Service(Path(args.db))
+    if os.environ.get('DATABASE_URL'):
+        from .postgres import PostgresService
+        service = PostgresService(os.environ['DATABASE_URL'])
+    else:
+        if args.init_db:
+            parser.error('--init-db requires DATABASE_URL')
+        service = Service(Path(args.db))
+    if args.init_db:
+        service.initialize_schema()
+        print('PostgreSQL schema ready.')
+        return 0
     if args.bootstrap_owner:
         password = getpass.getpass('Owner password (12–128 characters): ')
         if password != getpass.getpass('Repeat owner password: '):

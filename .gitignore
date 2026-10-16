@@ -10,3 +10,8 @@ build/
 dist/
 artifacts/
 *.spec
+.env.*
+!.env.example
+*.db-*
+*.sqlite*
+.vercel/
