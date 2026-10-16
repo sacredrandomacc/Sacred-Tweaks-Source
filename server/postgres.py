@@ -71,7 +71,7 @@ class Connection:
                 return Result(self.raw.execute('SELECT pg_advisory_xact_lock(%s)', (SERVICE_LOCK,)))
             # All SQL templates are internal constants; values stay bound parameters.
             sql = sql.replace('%', '%%').replace('?', '%s')
-            sql = sql.replace('username=%s', 'lower(username)=lower(%s)')
+            sql = sql.replace('WHERE username=%s', 'WHERE lower(username)=lower(%s)')
             sql = sql.replace('username LIKE ', 'username ILIKE ')
             sql = sql.replace('tier IS %s', 'tier IS NOT DISTINCT FROM %s')
             match = re.match(r'INSERT INTO (\w+)\b', sql)
