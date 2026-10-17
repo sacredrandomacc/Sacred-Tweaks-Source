@@ -27,7 +27,7 @@ namespace SacredOverlay {
   private XboxGameBarWidget widget;
   private XboxGameBarHotkeyWatcher watcher;
   private string token, endpoint, selected;
-  private bool refreshing, preferencesLoaded;
+  private bool refreshing, preferencesLoaded, togglingWindow;
   private JsonObject catalog=new JsonObject(), permissions=new JsonObject(), current=new JsonObject();
   private readonly Dictionary<string,FrameworkElement> inputs=new Dictionary<string,FrameworkElement>();
   private static readonly MacroCard[] Macros={
@@ -42,7 +42,11 @@ namespace SacredOverlay {
    new MacroCard{Kind="mantle",Name="Mantle repeat",Group="MOVEMENT",Description="Hold activation to repeat jump/mantle. Requires a valid ledge. Does NOT prevent fall damage or guarantee survival."}
   };
   public OverlayPage() {
-   InitializeComponent();Cards.ItemsSource=Macros;
+   InitializeComponent();
+   EditingCards.ItemsSource=Macros.Where(m=>m.Group=="EDITING").ToArray();
+   BuildingCards.ItemsSource=Macros.Where(m=>m.Group=="BUILDING").ToArray();
+   MovementCards.ItemsSource=Macros.Where(m=>m.Group=="MOVEMENT").ToArray();
+   UtilityCards.ItemsSource=Macros.Where(m=>m.Group=="UTILITY").ToArray();
    timer.Tick+=async(s,e)=>await Refresh();
    Unloaded+=(s,e)=>{timer.Stop();watcher?.Stop();};
   }
@@ -73,6 +77,7 @@ namespace SacredOverlay {
    if(refreshing||endpoint==null)return;refreshing=true;
    try {
     current=await Command("macro_status");catalog=current.GetNamedObject("catalog");permissions=current.GetNamedObject("permissions");
+    PairPanel.Visibility=Visibility.Collapsed;
     Status.Text=(current.GetNamedBoolean("enabled",false)?"ENABLED · ":"DISABLED · ")+current.GetNamedString("reason","");
     if(selected==null)ShowFields(current.GetNamedString("kind","single_edit"));
    } catch(Exception ex) { Status.Text="Disconnected: "+ex.Message; }
@@ -87,6 +92,12 @@ namespace SacredOverlay {
   private async void Card_Click(object sender,ItemClickEventArgs e) {
    try{await Command("emergency_stop");ShowFields(((MacroCard)e.ClickedItem).Kind);}catch(Exception ex){Status.Text=ex.Message;}
   }
+  private async void Category_Click(object sender,RoutedEventArgs e) {
+   SettingsPanel.Visibility=Visibility.Collapsed;MacroWorkspace.Visibility=Visibility.Visible;
+   try{await Command("emergency_stop");ShowFields((string)((Button)sender).Tag);}catch(Exception ex){Status.Text=ex.Message;}
+  }
+  private void Settings_Click(object sender,RoutedEventArgs e){MacroWorkspace.Visibility=Visibility.Collapsed;SettingsPanel.Visibility=Visibility.Visible;}
+  private void Macros_Click(object sender,RoutedEventArgs e){SettingsPanel.Visibility=Visibility.Collapsed;MacroWorkspace.Visibility=Visibility.Visible;}
   private void ShowFields(string kind) {
    if(!catalog.ContainsKey(kind))return;
    selected=kind;Fields.Children.Clear();inputs.Clear();
@@ -128,16 +139,25 @@ namespace SacredOverlay {
    }catch(Exception ex){Status.Text=ex.Message;}
   }
   private async void Stop_Click(object sender,RoutedEventArgs e){try{await Command("emergency_stop");Status.Text="Stopped.";}catch(Exception ex){Status.Text=ex.Message;}}
-  private async void Disconnect_Click(object sender,RoutedEventArgs e){try{await Command("emergency_stop");}catch{}timer.Stop();endpoint=token=null;PairCode.Password="";selected=null;Fields.Children.Clear();Status.Text="Disconnected.";}
+  private async void Disconnect_Click(object sender,RoutedEventArgs e){try{await Command("emergency_stop");}catch{}timer.Stop();endpoint=token=null;PairCode.Password="";selected=null;Fields.Children.Clear();PairPanel.Visibility=Visibility.Visible;Status.Text="Disconnected.";}
+  private async Task ToggleWidget() {
+   if(togglingWindow||widget==null)return;
+   togglingWindow=true;
+   try {
+    if(widget.WindowState==XboxGameBarWidgetWindowState.Minimized)await widget.RestoreAsync();
+    else await widget.MinimizeAsync();
+   }catch(Exception ex){Status.Text="Could not toggle the widget: "+ex.Message;}
+   finally{togglingWindow=false;}
+  }
   private void ConfigureHotkey(){
    if(widget==null)return;
    try{watcher?.Stop();var keys=new List<VirtualKey>{Hotkey.SelectedIndex==1?VirtualKey.F9:Hotkey.SelectedIndex==2?VirtualKey.F10:VirtualKey.Tab};
     watcher=XboxGameBarHotkeyWatcher.CreateWatcher(widget,keys);
-    watcher.HotkeySetStateChanged+=async(s,a)=>{if(a.HotkeySetDown)await Dispatcher.RunAsync(CoreDispatcherPriority.Normal,()=>Body.Visibility=Body.Visibility==Visibility.Visible?Visibility.Collapsed:Visibility.Visible);};watcher.Start();
+    watcher.HotkeySetStateChanged+=async(s,a)=>{if(a.HotkeySetDown)await Dispatcher.RunAsync(CoreDispatcherPriority.Normal,async()=>await ToggleWidget());};watcher.Start();
    }catch(Exception ex){Status.Text="Shortcut unavailable. Use Win+G. "+ex.Message;}
   }
   private void Hotkey_Changed(object sender,SelectionChangedEventArgs e){if(Hotkey==null)return;if(preferencesLoaded)ApplicationData.Current.LocalSettings.Values["hotkey"]=Hotkey.SelectedIndex;ConfigureHotkey();}
   private void Opacity_Changed(object sender,RangeBaseValueChangedEventArgs e){if(Surface==null)return;var color=((SolidColorBrush)Surface.Background).Color;color.A=(byte)(255*e.NewValue/100);Surface.Background=new SolidColorBrush(color);if(preferencesLoaded)ApplicationData.Current.LocalSettings.Values["opacity"]=e.NewValue;}
-  private void Accent_Changed(object sender,SelectionChangedEventArgs e){if(Accent==null||Cards==null)return;var color=Accent.SelectedIndex==1?Color.FromArgb(255,100,190,255):Accent.SelectedIndex==2?Color.FromArgb(255,240,202,110):Color.FromArgb(255,189,168,255);Cards.Foreground=new SolidColorBrush(color);if(preferencesLoaded)ApplicationData.Current.LocalSettings.Values["accent"]=Accent.SelectedIndex;}
+  private void Accent_Changed(object sender,SelectionChangedEventArgs e){if(Accent==null||EditingCards==null)return;var color=Accent.SelectedIndex==1?Color.FromArgb(255,100,190,255):Accent.SelectedIndex==2?Color.FromArgb(255,240,202,110):Color.FromArgb(255,189,168,255);var brush=new SolidColorBrush(color);EditingCards.Foreground=BuildingCards.Foreground=MovementCards.Foreground=UtilityCards.Foreground=brush;if(preferencesLoaded)ApplicationData.Current.LocalSettings.Values["accent"]=Accent.SelectedIndex;}
  }
 }
