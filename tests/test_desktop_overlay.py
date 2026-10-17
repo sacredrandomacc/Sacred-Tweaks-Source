@@ -69,6 +69,12 @@ class CompanionTests(unittest.TestCase):
         self.api._deadline = 5
         self.assertFalse(self.bridge.snapshot()['signed_in'])
 
+    def test_js_bridge_does_not_expose_app_or_controller_objects(self):
+        public = {name: getattr(self.bridge, name) for name in dir(self.bridge)
+                  if not name.startswith('_')}
+        self.assertTrue(public)
+        self.assertTrue(all(callable(value) for value in public.values()))
+
     def test_hotkey_opens_once_then_hides_whole_window_and_restores_game(self):
         self.probe.pressed = True
         self.controller.tick()

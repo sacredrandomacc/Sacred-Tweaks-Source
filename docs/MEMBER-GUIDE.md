@@ -7,6 +7,7 @@ Redeem your unused license, choose your username/password, and save the recovery
 Your username at the top right opens the account menu; license duration appears inside it. Features display their required tier. An owner may override your tier's access. A new login applies ordinary tier/permission changes.
 
 With Sacred Tweaks running and Fortnite focused in Windowed Fullscreen, press Tab to open the standalone companion window. Choose another hotkey in Appearance if Tab is already bound in-game. The menu shows account status, a settings preview, Windows shortcuts and its own appearance controls. Close it with the key, Escape, or × to return focus to Fortnite. For setup, display-mode limits and validation details, see `STANDALONE-OVERLAY.md` included beside this guide.
+If startup hangs, launch `Sacred Tweaks.exe` with `--no-overlay` from PowerShell as described in that guide, then share the last lines of `%LOCALAPPDATA%\SacredTweaks\startup.log` for diagnosis.
 
 Macros start disabled. Configure the actual bindings you use in Fortnite, choose an emergency-stop key, and enable only the desired macro. Single Edit sends edit/select/confirm; Drag holds the selected input while the edit key is held. Use manual confirmation when appropriate, and match Fortnite's confirmation setting to avoid sending a second confirmation. Timing depends on Windows and the game. The player still aims and chooses tiles. Focus loss, session loss and configuration changes stop macros. A reconnect never restarts them.
 

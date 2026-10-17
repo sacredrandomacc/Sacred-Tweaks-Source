@@ -29,6 +29,20 @@ makes the hotkey available again. Closing and restarting Fortnite is handled
 the same way. The app watches foreground window identity and key state; it does
 not inject into Fortnite, inspect its memory, hook its renderer, or change its
 files to draw the interface.
+The companion's WebView2 window is initialized after Fortnite first takes
+focus. Allow a moment on the first launch before pressing the hotkey.
+
+If Sacred Tweaks freezes at startup, close it in Task Manager, then open
+PowerShell in the extracted `Sacred Tweaks` folder and run:
+
+```powershell
+& '.\Sacred Tweaks.exe' --no-overlay
+```
+
+This starts the normal desktop app without the companion, which helps isolate
+the issue. The non-sensitive startup trace is at
+`%LOCALAPPDATA%\SacredTweaks\startup.log`; share its last few lines if the
+problem persists. Never share your `client-config.json` or account credentials.
 
 Exclusive fullscreen may prevent normal desktop windows from appearing over
 the game; use Windowed Fullscreen for reliable overlay visibility. Windows

@@ -30,28 +30,30 @@ def valid_preferences(values):
 class OverlayBridge:
     """Only account display, appearance, and supported read-only settings are exposed."""
     def __init__(self, api, data_dir):
-        self.api = api
-        self.path = Path(data_dir) / 'overlay-preferences.json'
+        # pywebview recursively walks public bridge attributes. Keep object
+        # references private so it cannot traverse the native engine/window.
+        self._api = api
+        self._path = Path(data_dir) / 'overlay-preferences.json'
         try:
-            self.values = valid_preferences(json.loads(self.path.read_text('utf-8')))
+            self._values = valid_preferences(json.loads(self._path.read_text('utf-8')))
         except (OSError, ValueError, TypeError, KeyError):
-            self.values = dict(DEFAULTS)
-        self.controller = None
+            self._values = dict(DEFAULTS)
+        self._controller = None
 
     def preferences(self):
-        return dict(self.values)
+        return dict(self._values)
 
     def save_preferences(self, values):
         chosen = valid_preferences(values)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        atomic_json(self.path, chosen)
-        self.values = chosen
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        atomic_json(self._path, chosen)
+        self._values = chosen
         return self.preferences()
 
     def snapshot(self):
-        with self.api._lock:
-            session = self.api._session
-            active = bool(session and self.api._token and self.api._clock() < self.api._deadline)
+        with self._api._lock:
+            session = self._api._session
+            active = bool(session and self._api._token and self._api._clock() < self._api._deadline)
             if not active:
                 return {'signed_in': False, 'username': '', 'tier': '', 'license': None, 'permissions': {}}
             return {'signed_in': True, 'username': session.get('user', {}).get('username', ''),
@@ -63,7 +65,7 @@ class OverlayBridge:
     def preview_performance(self, preset, target_fps):
         if preset not in ('performance', 'balanced') or type(target_fps) is not int or not 30 <= target_fps <= 1000:
             raise ValueError('Choose a supported preset and frame-rate target.')
-        response = self.api.local('settings_preview', {'preset': preset, 'target_fps': target_fps})
+        response = self._api.local('settings_preview', {'preset': preset, 'target_fps': target_fps})
         if not response['ok']:
             raise ValueError(response['error'])
         plan = response['data']
@@ -74,20 +76,20 @@ class OverlayBridge:
     def open_windows_settings(self, page):
         if page not in ('game_mode', 'capture', 'graphics', 'display'):
             raise ValueError('Unknown settings page.')
-        response = self.api.local('windows_settings', {'page': page})
+        response = self._api.local('windows_settings', {'page': page})
         if not response['ok']:
             raise ValueError(response['error'])
         return response['data']
 
     def close_menu(self):
-        if self.controller:
-            self.controller.hide(restore=True)
+        if self._controller:
+            self._controller.hide(restore=True)
         return True
 
     def open_desktop(self):
-        if self.controller:
-            self.controller.hide(restore=False)
-            self.controller.show_desktop()
+        if self._controller:
+            self._controller.hide(restore=False)
+            self._controller.show_desktop()
         return True
 
 
@@ -145,7 +147,7 @@ class DesktopOverlayController:
     """Polls only while the member app runs; hidden windows own no input area."""
     def __init__(self, window, desktop, bridge, probe):
         self.window, self.desktop, self.bridge, self.probe = window, desktop, bridge, probe
-        bridge.controller = self
+        bridge._controller = self
         self.stop_event = threading.Event()
         self.thread = None
         self.open = False
@@ -183,7 +185,7 @@ class DesktopOverlayController:
                 self.hide(restore=False)  # Alt-Tab or another application took focus.
             if not self.open and not game_active:
                 self.game_hwnd = None
-            key = self.bridge.values['hotkey']
+            key = self.bridge._values['hotkey']
             if key != self.last_key:
                 self.was_down = False
                 self.last_key = key
@@ -217,7 +219,7 @@ class DesktopOverlayController:
         with self.lock:
             if not self.open:
                 return
-            if restore and not self.bridge.values['reduced_motion']:
+            if restore and not self.bridge._values['reduced_motion']:
                 self.window.evaluate_js("document.body.classList.remove('opening'); document.body.classList.add('closing')")
                 time.sleep(.12)
             self.window.hide()
