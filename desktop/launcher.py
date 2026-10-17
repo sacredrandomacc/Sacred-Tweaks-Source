@@ -57,7 +57,14 @@ def launch(mode="member"):
             overlay_controller = DesktopOverlayController(companion, window, overlay_bridge,
                                                           WindowsOverlayProbe(native.platform))
             companion.events.loaded += overlay_controller.start
+            def close_companion():
+                if overlay_controller.stop_event.is_set():
+                    return True
+                threading.Thread(target=lambda: overlay_controller.hide(restore=True), daemon=True).start()
+                return False
+            companion.events.closing += close_companion
             window.events.closed += overlay_controller.close
+            window.events.closed += companion.destroy
         if smoke:
             def verify_window():
                 smoke_result["loaded"] = window.evaluate_js("document.readyState === 'complete' && !!document.body") is True
