@@ -9,8 +9,9 @@ Manager is for account management, not the companion you need to pair.
 
 The Actions artifact contains an unsigned development MSIX and three x64
 dependency packages. It does not contain build-gamebar.ps1 or a loose
-AppxManifest.xml. On Windows 11 with Developer Mode enabled, extract the
-artifact completely, open PowerShell in that folder, and run:
+AppxManifest.xml. On Windows 11 with Developer Mode enabled, close any
+previous widget, extract the artifact completely, open PowerShell in that
+folder, and run:
 
 ```powershell
 $package = Get-ChildItem . -Recurse -File -Filter 'SacredOverlay*.msix' | Select-Object -First 1
