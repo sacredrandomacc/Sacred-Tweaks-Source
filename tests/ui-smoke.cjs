@@ -73,10 +73,10 @@ const fixture = ({mode, tier}) => {
 (async()=>{
   const server = http.createServer((req,res)=>{
     const name = req.url.split('?')[0] === '/' ? 'index.html' : req.url.split('?')[0].slice(1);
-    if(!['index.html','styles.css','app.js','manager.js'].includes(name)){res.writeHead(404);res.end();return;}
+    if(!['index.html','styles.css','app.js','manager.js','assets/sacred-icon.png'].includes(name)){res.writeHead(404);res.end();return;}
     const file=path.join(root,'web',name);
     if(!fs.existsSync(file)){res.writeHead(404);res.end();return;}
-    res.setHeader('Content-Type',name.endsWith('.js')?'text/javascript':name.endsWith('.css')?'text/css':'text/html');res.end(fs.readFileSync(file));
+    res.setHeader('Content-Type',name.endsWith('.js')?'text/javascript':name.endsWith('.css')?'text/css':name.endsWith('.png')?'image/png':'text/html');res.end(fs.readFileSync(file));
   });
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
   const browser=await chromium.launch({headless:true,...(process.env.SACRED_CHROMIUM?{executablePath:process.env.SACRED_CHROMIUM}:{}),args:['--no-sandbox']});
@@ -89,6 +89,7 @@ const fixture = ({mode, tier}) => {
       page.on('pageerror',e=>errors.push(e.message));
       await page.goto(`http://127.0.0.1:${server.address().port}/`);
       await page.locator('form[data-form="login"]').waitFor();
+      await page.waitForFunction(()=>[...document.querySelectorAll('img.sacred-app-icon')].every(i=>i.complete&&i.naturalWidth>0));
       await page.screenshot({path:path.join(screenshots,`${mode}-${tier}-login.png`),fullPage:true});
       if(mode==='member'&&tier==='Core'){
         await page.locator('[data-action="open-restore"]').click();
