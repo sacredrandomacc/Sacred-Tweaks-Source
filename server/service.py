@@ -28,6 +28,9 @@ FEATURES = ('single_edit', 'performance', 'measurements', 'themes', 'potato',
             'filter_keys', 'owner_presets', 'drag', 'advanced', 'profiles', 'beta')
 TIERS = ('Core', 'Plus', 'Pro', 'Elite')
 MIN_TIER = dict(zip(FEATURES, (0, 0, 0, 0, 1, 2, 2, 3, 3, 3, 3)))
+EXTENDED_MACROS = ('prefire', 'pickup', 'wall_replace', 'auto_build', 'mantle', 'quick_reset', 'floor_cone')
+FEATURES += EXTENDED_MACROS
+MIN_TIER.update({name: 3 for name in EXTENDED_MACROS})
 LEASE_SECONDS = 25
 HEARTBEAT_SECONDS = 10
 

@@ -11,19 +11,22 @@ if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed' }
 & $pythonExe -m unittest discover -s tests -v
 if ($LASTEXITCODE -ne 0) { throw 'Tests failed; packaging stopped' }
 foreach ($app in @(@{Name='Sacred Tweaks'; Entry='member.py'}, @{Name='Sacred Tweaks Manager'; Entry='manager.py'})) {
-    & $pythonExe -m PyInstaller --clean --noconfirm --onedir --windowed --name $app.Name --add-data 'web;web' --collect-all webview $app.Entry
+    & $pythonExe -m PyInstaller --clean --noconfirm --onedir --windowed --name $app.Name --icon 'assets\sacred-app-icon.ico' --add-data 'assets;assets' --add-data 'web;web' --collect-all webview $app.Entry
     if ($LASTEXITCODE -ne 0) { throw "Packaging failed: $($app.Name)" }
     $destination = Join-Path 'dist' $app.Name
     $clientConfig = if (Test-Path 'client-config.json') { 'client-config.json' } else { 'client-config.example.json' }
     Copy-Item $clientConfig (Join-Path $destination 'client-config.json')
     $guide = if ($app.Entry -eq 'manager.py') { 'docs\OWNER-GUIDE.md' } else { 'docs\MEMBER-GUIDE.md' }
     Copy-Item $guide $destination
-    if (-not $SkipSmokeTest) {
-        $process = Start-Process -FilePath (Join-Path $destination "$($app.Name).exe") -ArgumentList '--smoke-test' -PassThru
-        if (-not $process.WaitForExit(45000)) { $process.Kill(); throw "Launch timed out: $($app.Name)" }
-        if ($process.ExitCode -ne 0) { throw "WebView2 launch failed: $($app.Name)" }
-    }
+    Copy-Item 'LICENSE','THIRD-PARTY-NOTICES.md','docs\GAME-BAR.md' $destination
     $archiveName = $app.Name.Replace(' ', '-') + '-Windows-x64.zip'
     Compress-Archive -Path $destination -DestinationPath (Join-Path 'dist' $archiveName) -Force
+}
+if (-not $SkipSmokeTest) {
+    foreach ($appName in @('Sacred Tweaks', 'Sacred Tweaks Manager')) {
+        $process = Start-Process -FilePath (Join-Path (Join-Path 'dist' $appName) "$appName.exe") -ArgumentList '--smoke-test' -PassThru
+        if (-not $process.WaitForExit(45000)) { $process.Kill(); throw "Both packages were built, but launch timed out: $appName" }
+        if ($process.ExitCode -ne 0) { throw "Both packages were built, but WebView2 launch failed: $appName" }
+    }
 }
 Write-Host 'Created two UNSIGNED portable Windows application packages in dist. Keep each .exe with its _internal folder.'

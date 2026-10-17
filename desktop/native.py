@@ -1,3 +1,4 @@
+# Copyright (c) 2026 Sacred LLC. All rights reserved. See LICENSE.
 """Native boundary: allowlisted local operations, Windows input and lease watchdog.
 
 No process injection, game memory reads, anti-cheat bypass or hidden settings.
@@ -21,7 +22,7 @@ import threading
 import time
 import uuid
 
-from .macros import KEY_CODES, MacroEngine, validate_config
+from .macros import KEY_CODES, MacroEngine, validate_config, DEFAULT_CONFIG, EXTENDED_DEFAULTS, COMMON_EXTENDED
 from .settings import SettingsManager, FilterKeysManager, atomic_json
 
 FORTNITE_EXECUTABLES = frozenset({'fortniteclient-win64-shipping.exe', 'fortniteclient-win64-shipping_eac_eos.exe',
@@ -398,7 +399,7 @@ class NativeTools:
         self.permissions, self.enforced, self.deadline = {}, {}, 0.0
         self.foreground = False
         self.authorization_generation = 0
-        self._interest = ('F', 'F8', False)  # Immutable snapshot: hook never takes a lock or blocks.
+        self._interest = (frozenset({'F'}), 'F8', False)  # Immutable snapshot: hook never takes a lock or blocks.
         self.settings = SettingsManager(self.data_dir, game_running=self.platform.game_running, authorize=self._require)
         self.cpu = CpuSampler()
         self.cpu.sample()
@@ -409,11 +410,11 @@ class NativeTools:
 
     def _interested(self, key):
         activation, emergency, suppress = self._interest
-        return key in (activation, emergency), key == activation and suppress and time.monotonic() < self.deadline
+        return (key in activation or key == emergency), key in activation and suppress and time.monotonic() < self.deadline
 
     def _enqueue(self, key, down):
         activation, emergency, _ = self._interest
-        if key not in (activation, emergency):
+        if key not in activation and key != emergency:
             return
         try:
             self.events.put_nowait((key, down))
@@ -428,8 +429,8 @@ class NativeTools:
                 return
 
     def _update_interest(self):
-        self._interest = (self.engine.config['activation'], self.engine.config['emergency'],
-                          self.engine.kind == 'single_edit' and self.engine.enabled and self.foreground)
+        self._interest = (frozenset(self.engine.activation_keys()), self.engine.config['emergency'],
+                          self.engine.kind not in ('drag', 'auto_build') and self.engine.enabled and self.foreground)
 
     def _loop(self):
         while not self.closed.wait(.005 if self.engine.enabled or self.engine.held else .05):
@@ -521,7 +522,7 @@ class NativeTools:
 
     def _status(self):
         with self.lock:
-            result = self.engine.status() | {'foreground': self.foreground, 'available': self.platform.available}
+            result = self.engine.status() | {'foreground': self.foreground, 'available': self.platform.available, 'permissions': self.permissions.copy(), 'catalog': {'single_edit': DEFAULT_CONFIG, 'drag': DEFAULT_CONFIG, **{k: COMMON_EXTENDED | v for k,v in EXTENDED_DEFAULTS.items()}}}
         try:
             result['game_running'] = self.platform.game_running()
         except OSError:

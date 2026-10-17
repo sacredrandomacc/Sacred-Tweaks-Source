@@ -81,7 +81,7 @@ class ServiceTests(unittest.TestCase):
         self.call('POST', '/v1/tools/authorize', {'feature': 'drag'}, s['token'], status=403)
 
     def test_every_tier_permissions(self):
-        expected = {'Core': 4, 'Plus': 5, 'Pro': 7, 'Elite': 11}
+        expected = {'Core': 4, 'Plus': 5, 'Pro': 7, 'Elite': 18}
         for tier, allowed in expected.items():
             with self.subTest(tier=tier):
                 s = self.register(tier=tier, username=tier.lower())

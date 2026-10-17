@@ -66,3 +66,7 @@ See `docs/DEPLOYMENT.md`, `docs/OWNER-GUIDE.md`, and `docs/MEMBER-GUIDE.md`.
 
 For Vercel with persistent PostgreSQL, follow [the hosted setup guide](docs/VERCEL.md).
 The Windows app build is separate from the hosted API.
+
+## Macro studio and Game Bar
+
+Seven additional input modes, a paired Game Bar companion, and Sacred LLC ownership notices are included. See [Game Bar setup and limitations](docs/GAME-BAR.md). The widget needs its own Windows build and registration. Gameplay automation is cheating under Epic’s rules and carries account-ban and tournament risks.

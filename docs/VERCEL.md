@@ -66,7 +66,7 @@ protection-bypass token in a desktop config.
 ## 5. Verify and connect both desktop apps
 
 Visit `https://YOUR-PROJECT.vercel.app/v1/health`. It should return JSON with
-`ok: true`. A plain `/` URL can return 404; this is an API, not a website.
+`"status": "ok"`. A plain `/` URL can return 404; this is an API, not a website.
 503 means the environment/database/schema is unavailable. HTML or a Vercel login
 page means Deployment Protection is blocking the request.
 
