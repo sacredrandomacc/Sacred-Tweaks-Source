@@ -2,7 +2,7 @@ name: Windows apps and Game Bar
 on:
   workflow_dispatch:
   push:
-    branches: ['codex/macros-gamebar']
+    branches: ['codex/**']
 permissions:
   contents: read
 jobs:
