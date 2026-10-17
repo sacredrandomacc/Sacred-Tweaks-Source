@@ -79,14 +79,14 @@ class CompanionTests(unittest.TestCase):
         self.controller.tick()
         self.probe.pressed = True
         self.controller.tick()
-        self.assertEqual(self.window.calls, ['show', 'refresh', 'hide'])
+        self.assertEqual(self.window.calls, ['show', 'refresh', 'refresh', 'hide'])
         self.assertEqual(self.probe.focused[-1], 1)
         self.probe.pressed = False
         self.probe.current, self.probe.game = 3, False
         self.controller.tick()
         self.probe.pressed = True
         self.controller.tick()
-        self.assertEqual(self.window.calls, ['show', 'refresh', 'hide'])
+        self.assertEqual(self.window.calls, ['show', 'refresh', 'refresh', 'hide'])
 
     def test_alt_tab_restart_and_window_bounds(self):
         self.probe.pressed = True

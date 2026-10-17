@@ -1,5 +1,6 @@
 :root{--accent:#9e87f3;--accent-rgb:158,135,243;--surface:#161b26;--panel:#202736;--ink:#ecf0f8;--muted:#9ba8bc;--line:#354052;--opacity:.94;color-scheme:dark}
 *{box-sizing:border-box}html,body{margin:0;height:100%;font-family:"Segoe UI Variable","Segoe UI",sans-serif;color:var(--ink);background:#111722}body{overflow:hidden}
+body.opening .shell{animation:menu-in .18s ease-out both}body.closing .shell{animation:menu-out .12s ease-in both}@keyframes menu-in{from{opacity:.35;transform:scale(.985)}to{opacity:1;transform:scale(1)}}@keyframes menu-out{to{opacity:0;transform:scale(.99)}}
 button,select,input{font:inherit}button{cursor:pointer;color:inherit}button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .shell{display:grid;grid-template-columns:198px minmax(0,1fr);height:100%;border:1px solid #516073;background:linear-gradient(145deg,rgba(31,39,55,var(--opacity)),rgba(13,18,29,var(--opacity)));box-shadow:inset 0 1px #ffffff18}
 .rail{background:#151b29;border-right:1px solid #354052;display:flex;flex-direction:column;padding:27px 14px 20px}

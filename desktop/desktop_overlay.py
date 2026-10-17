@@ -209,12 +209,17 @@ class DesktopOverlayController:
         self.probe.focus(self.overlay_hwnd)
         self.open = True
         # Account and lease data may have changed since this hidden page loaded.
-        self.window.evaluate_js('window.SacredOverlay && window.SacredOverlay.refresh()')
+        self.window.evaluate_js("document.body.classList.remove('closing'); document.body.classList.remove('opening'); "
+                                "void document.body.offsetWidth; document.body.classList.add('opening'); "
+                                "window.SacredOverlay && window.SacredOverlay.refresh()")
 
     def hide(self, restore=False):
         with self.lock:
             if not self.open:
                 return
+            if restore and not self.bridge.values['reduced_motion']:
+                self.window.evaluate_js("document.body.classList.remove('opening'); document.body.classList.add('closing')")
+                time.sleep(.12)
             self.window.hide()
             self.open = False
             if restore and self.probe.exists(self.game_hwnd):
