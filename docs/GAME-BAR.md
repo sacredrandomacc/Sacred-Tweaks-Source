@@ -5,6 +5,31 @@ build-windows.ps1 does not install a Game Bar widget. Keep the desktop member
 app running and signed in; the widget only controls that app's input engine.
 Manager is for account management, not the companion you need to pair.
 
+## Install from the GitHub Actions download
+
+The Actions artifact contains an unsigned development MSIX and three x64
+dependency packages. It does not contain build-gamebar.ps1 or a loose
+AppxManifest.xml. On Windows 11 with Developer Mode enabled, close any
+previous widget, extract the artifact completely, open PowerShell in that
+folder, and run:
+
+```powershell
+$package = Get-ChildItem . -Recurse -File -Filter 'SacredOverlay*.msix' | Select-Object -First 1
+if (-not $package) { throw 'The Sacred Overlay MSIX is missing.' }
+Get-ChildItem (Join-Path $package.DirectoryName 'Dependencies\x64') -Filter '*.appx' |
+    ForEach-Object { Add-AppxPackage -Path $_.FullName }
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$layout = Join-Path $package.DirectoryName 'Unpacked'
+if (-not (Test-Path (Join-Path $layout 'AppxManifest.xml'))) {
+    [System.IO.Compression.ZipFile]::ExtractToDirectory($package.FullName, $layout)
+}
+Add-AppxPackage -Register (Join-Path $layout 'AppxManifest.xml')
+```
+
+Keep this extracted folder in place while the development widget is
+registered. Do not use the source-build command below inside the Actions
+download. If an Appx command fails, save its first error for diagnosis.
+
 ## Build and register on your own PC
 
 Install Visual Studio 2022 with Universal Windows Platform development, its
@@ -43,12 +68,15 @@ submission; it is not presented as a Store-certified distribution route.
 4. Enter the local port and temporary pairing code from the desktop app.
 5. Choose a macro, edit the bindings/timing, Save, acknowledge the cheat-risk
    warning, and Enable. Close Game Bar to return input focus to Fortnite.
-6. Tab expands/collapses the pinned widget's content; its header remains. F9
-   and F10 are alternatives in widget settings. Game Bar owns input focus:
-   use Win+G to click controls. Tab is not swallowed and can also open Fortnite's
-   inventory; rebind it if that conflicts. If the hotkey watcher cannot start,
-   the widget reports the error and Win+G remains the supported access path.
-7. Change panel opacity and accent in widget settings. Those appearance and
+6. Tab minimizes/restores the entire widget, including the Game Bar frame.
+   F9 and F10 are alternatives in widget settings. Tab is not swallowed and
+   may open Fortnite's inventory; rebind it if that conflicts. The hotkey
+   watcher and restored window behavior need target-PC validation.
+7. For mouse interaction while pinned, turn OFF Game Bar's click-through
+   toggle in the Win+G Home Bar. Click-through is a Game Bar-wide user setting:
+   if on, clicks pass straight to the game. Some games still capture the
+   pointer, so use Win+G to edit controls if direct clicks are unavailable.
+8. Change panel opacity and accent in widget settings. Those appearance and
    hotkey choices persist locally. Pairing secrets and risk acknowledgement do
    not persist. Signing out or closing the desktop app revokes pairing.
 
@@ -92,6 +120,10 @@ focus/lease/emergency cancellation, pairing authentication, token rotation,
 browser-origin rejection, and command allowlisting. Windows CI compiles the
 apps/widget; interactive pinning, Tab behavior, fullscreen behavior, and game
 input still require testing on the target Windows installation.
+The new full-window minimize/restore shortcut and pinned mouse interaction
+also require target-PC testing. Macro and automation tools may be blocked by
+BattlEye or lead to an Epic account action; changing overlay technology
+cannot guarantee a safe outcome.
 
 Epic's statement: https://www.fortnite.com/news/fortnite-chapter-2-season-5-competitive-integrity-update
 Game Bar SDK: https://learn.microsoft.com/en-us/gaming/game-bar/overview
