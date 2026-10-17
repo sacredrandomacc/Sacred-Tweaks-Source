@@ -5,7 +5,7 @@ Copyright (c) 2026 Sacred LLC. All rights reserved.
 
 ` sacred-app-icon.png ` is the 512px project master. `sacred-app-icon.ico` contains
 16, 24, 32, 48, 64, 128 and 256px Windows variants. The same artwork supplies
-web branding and the Game Bar package logos. Variants only resize the original;
+web branding and the desktop executable. Variants only resize the original;
 wide Windows tiles center it on a transparent canvas.
 
 Prompt used:

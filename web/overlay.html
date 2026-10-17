@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+ <meta charset="utf-8">
+ <meta name="viewport" content="width=device-width,initial-scale=1">
+ <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'">
+ <title>Sacred Tweaks • Companion</title>
+ <link rel="icon" href="../assets/sacred-app-icon.png">
+ <link rel="stylesheet" href="overlay.css">
+ <script defer src="overlay.js"></script>
+</head>
+<body>
+ <div class="shell">
+  <aside class="rail">
+   <div class="brand"><img src="../assets/sacred-app-icon.png" alt=""><span><strong>SACRED</strong><small>TWEAKS / COMPANION</small></span></div>
+   <div class="rail-label">CONTROL ROOM</div>
+   <nav aria-label="Overlay pages">
+    <button class="nav active" data-page="overview"><span class="symbol">◈</span> Overview</button>
+    <button class="nav" data-page="performance"><span class="symbol">▥</span> Performance</button>
+    <button class="nav" data-page="windows"><span class="symbol">▣</span> Windows</button>
+    <button class="nav" data-page="appearance"><span class="symbol">✦</span> Appearance</button>
+   </nav>
+   <div class="rail-foot"><span class="live-dot"></span><span id="rail-status">Waiting for app</span><small>ESC or hotkey to close</small></div>
+  </aside>
+  <div class="workspace">
+   <header class="header">
+    <div><div class="overline" id="eyebrow">FORTNITE COMPANION</div><h1 id="title">Overview</h1></div>
+    <div class="header-actions">
+     <button id="account-button" class="account" aria-expanded="false"><span id="avatar" class="avatar">S</span><span><strong id="username">Signed out</strong><small id="license-time">Open Sacred Tweaks to sign in</small></span><span class="chevron">⌄</span></button>
+     <button class="close" id="close-button" aria-label="Close overlay">×</button>
+     <div class="account-popover" id="account-popover" hidden></div>
+    </div>
+   </header>
+   <main class="content" id="content" aria-live="polite"></main>
+   <footer><span>EXTERNAL DESKTOP COMPANION</span><span id="footer-key">TAB TO CLOSE</span><span>© 2026 SACRED LLC</span></footer>
+  </div>
+ </div>
+ <div id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
