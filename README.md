@@ -67,6 +67,6 @@ See `docs/DEPLOYMENT.md`, `docs/OWNER-GUIDE.md`, and `docs/MEMBER-GUIDE.md`.
 For Vercel with persistent PostgreSQL, follow [the hosted setup guide](docs/VERCEL.md).
 The Windows app build is separate from the hosted API.
 
-## Macro studio and Game Bar
+## Standalone companion overlay
 
-Seven additional input modes, a paired Game Bar companion, and Sacred LLC ownership notices are included. See [Game Bar setup and limitations](docs/GAME-BAR.md). The widget needs its own Windows build and registration. Gameplay automation is cheating under Epic’s rules and carries account-ban and tournament risks.
+The member app includes a separate Windows companion window for account status, settings preview, system shortcuts, and appearance. No widget registration is required. See [setup and limitations](docs/STANDALONE-OVERLAY.md). The optional macro studio stays in the desktop app; gameplay automation carries account and competitive risks.

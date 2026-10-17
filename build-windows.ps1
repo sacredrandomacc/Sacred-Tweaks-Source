@@ -18,7 +18,7 @@ foreach ($app in @(@{Name='Sacred Tweaks'; Entry='member.py'}, @{Name='Sacred Tw
     Copy-Item $clientConfig (Join-Path $destination 'client-config.json')
     $guide = if ($app.Entry -eq 'manager.py') { 'docs\OWNER-GUIDE.md' } else { 'docs\MEMBER-GUIDE.md' }
     Copy-Item $guide $destination
-    Copy-Item 'LICENSE','THIRD-PARTY-NOTICES.md','docs\GAME-BAR.md' $destination
+    Copy-Item 'LICENSE','THIRD-PARTY-NOTICES.md','docs\STANDALONE-OVERLAY.md' $destination
     $archiveName = $app.Name.Replace(' ', '-') + '-Windows-x64.zip'
     Compress-Archive -Path $destination -DestinationPath (Join-Path 'dist' $archiveName) -Force
 }

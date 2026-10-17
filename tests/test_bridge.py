@@ -135,17 +135,6 @@ class BridgeTests(unittest.TestCase):
         target.write_text('{broken')
         self.assertNotIn('theme', self.api.bootstrap()['data'])
 
-    def test_widget_pair_requires_session_and_is_revoked_on_logout(self):
-        self.assertFalse(self.api.local('overlay_pair')['ok'])
-        self.login()
-        pair = self.api.local('overlay_pair')['data']
-        self.addCleanup(self.api._overlay.close)
-        self.assertNotIn('private-token', str(pair))
-        self.assertEqual(self.api._overlay.token, pair['token'])
-        self.api._clear('Signed out')
-        self.assertNotEqual(self.api._overlay.token, pair['token'])
-        self.assertFalse(self.api.local('macro_enable', {'enabled':True})['ok'])
-
     def test_urls_disallow_insecure_nonlocal_and_embedded_credentials(self):
         for url in ["http://example.com", "https://a:b@example.com", "https://example.com/path", "https://example.com#x"]:
             with self.assertRaises(ValueError):

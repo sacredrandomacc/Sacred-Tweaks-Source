@@ -45,6 +45,26 @@ def launch(mode="member"):
         window.events.closed += api._close
         window.events.minimized += lambda: api._emit({"minimized": True})
         window.events.restored += lambda: api._emit({"minimized": False})
+        overlay_controller = None
+        if mode == "member" and not smoke:
+            from desktop.desktop_overlay import OverlayBridge, DesktopOverlayController, WindowsOverlayProbe
+            overlay_bridge = OverlayBridge(api, base)
+            companion = webview.create_window(
+                "Sacred Tweaks • Companion", url=str(root / "web" / "overlay.html"),
+                js_api=overlay_bridge, width=1020, height=640, min_size=(880, 560),
+                hidden=True, frameless=True, easy_drag=False, on_top=True,
+                background_color="#111722")
+            overlay_controller = DesktopOverlayController(companion, window, overlay_bridge,
+                                                          WindowsOverlayProbe(native.platform))
+            companion.events.loaded += overlay_controller.start
+            def close_companion():
+                if overlay_controller.stop_event.is_set():
+                    return True
+                threading.Thread(target=lambda: overlay_controller.hide(restore=True), daemon=True).start()
+                return False
+            companion.events.closing += close_companion
+            window.events.closed += overlay_controller.close
+            window.events.closed += companion.destroy
         if smoke:
             def verify_window():
                 smoke_result["loaded"] = window.evaluate_js("document.readyState === 'complete' && !!document.body") is True
