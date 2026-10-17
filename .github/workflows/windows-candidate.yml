@@ -16,6 +16,10 @@ jobs:
       - name: Build desktop apps
         shell: pwsh
         run: ./build-windows.ps1 -SkipSmokeTest
+      - name: Verify executable icon resources
+        shell: pwsh
+        run: |
+          ./.venv/Scripts/python.exe -c "import pefile; from pathlib import Path; files=list(Path('dist').glob('*/*.exe')); assert len(files)==2; [(print(p),exec('with pefile.PE(str(p)) as pe:\n assert {3,14}.issubset({e.id for e in pe.DIRECTORY_ENTRY_RESOURCE.entries})')) for p in files]"
       - uses: microsoft/setup-msbuild@v2
       - name: Compile Game Bar widget
         shell: pwsh

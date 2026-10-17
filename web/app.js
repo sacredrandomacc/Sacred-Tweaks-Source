@@ -20,7 +20,7 @@
     settings:'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8 M9 3h6l1 3 3 1 2 5-2 5-3 1-1 3H9l-1-3-3-1-2-5 2-5 3-1z', file:'M5 2h10l5 5v15H5z M14 2v6h6 M9 12h7m-7 4h7', message:'M3 3h18v14H8l-5 4z M7 8h10m-10 4h7', logout:'M9 3H3v18h6 M9 12h12m-5-5 5 5-5 5'
   };
   const icon = name => `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="${icons[name] || icons.grid}"/></svg>`;
-  const brand = () => `<div class="row brand"><div class="brand-mark" aria-hidden="true">S</div><div class="brand-copy"><div class="brand-name">SACRED</div><div class="brand-sub">${state.boot?.mode === 'manager' ? 'TWEAKS MANAGER' : 'TWEAKS'}</div></div></div>`;
+  const brand = () => `<div class="row brand"><img class="brand-mark sacred-app-icon" src="assets/sacred-icon.png" alt=""><div class="brand-copy"><div class="brand-name">SACRED</div><div class="brand-sub">${state.boot?.mode === 'manager' ? 'TWEAKS MANAGER' : 'TWEAKS'}</div></div></div>`;
   const tier = value => `<span class="tier tier-${['Core','Plus','Pro','Elite'].includes(value) ? value.toLowerCase() : 'core'}">${escape(value)}</span>`;
   const button = (label, action, style = '', data = '', symbol = '') => `<button type="button" class="btn ${style}" data-action="${action}" ${data}>${symbol ? icon(symbol) : ''}${escape(label)}</button>`;
   const field = (name, label, value = '', type = 'text', extra = '', hint = '') => `<div class="field"><label for="${name}">${escape(label)}</label><input id="${name}" name="${name}" type="${type}" value="${escape(value)}" ${extra}>${hint ? `<small>${escape(hint)}</small>` : ''}</div>`;

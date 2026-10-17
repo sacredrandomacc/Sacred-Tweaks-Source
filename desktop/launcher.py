@@ -9,12 +9,25 @@ def resource_root():
     return Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[1]))
 
 
+def apply_window_icon(window, root):
+    """Set the WinForms title-bar/taskbar icon after the native form exists."""
+    from System import Action
+    from System.Drawing import Icon
+    def apply():
+        window.native.Icon = Icon(str(root / 'assets' / 'sacred-app-icon.ico'))
+        window.native.ShowIcon = True
+    window.native.Invoke(Action(apply))
+
+
 def launch(mode="member"):
     if os.name != "nt":
         raise SystemExit("Sacred Tweaks desktop requires Windows 10/11. The backend and tests are cross-platform.")
     smoke = "--smoke-test" in sys.argv
     smoke_result = {"loaded": False}
     try:
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
+            "SacredLLC.SacredTweaks." + ("Manager" if mode == "manager" else "Member"))
         import webview
         from desktop.bridge import Api
         from desktop.native import NativeTools
@@ -27,6 +40,7 @@ def launch(mode="member"):
         native = NativeTools(base)
         api = Api(mode, base, config["api_url"], native, allow_http=config.get("allow_local_http", False) is True)
         window = webview.create_window("Sacred Tweaks Manager" if mode == "manager" else "Sacred Tweaks", url=str(root / "web" / "index.html"), js_api=api, width=1280, height=850, min_size=(900, 650), background_color="#090811")
+        window.events.loaded += lambda: apply_window_icon(window, root)
         window.events.loaded += lambda: api._attach(window)
         window.events.closed += api._close
         window.events.minimized += lambda: api._emit({"minimized": True})

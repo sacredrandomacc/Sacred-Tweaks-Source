@@ -11,7 +11,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed' }
 & $pythonExe -m unittest discover -s tests -v
 if ($LASTEXITCODE -ne 0) { throw 'Tests failed; packaging stopped' }
 foreach ($app in @(@{Name='Sacred Tweaks'; Entry='member.py'}, @{Name='Sacred Tweaks Manager'; Entry='manager.py'})) {
-    & $pythonExe -m PyInstaller --clean --noconfirm --onedir --windowed --name $app.Name --add-data 'web;web' --collect-all webview $app.Entry
+    & $pythonExe -m PyInstaller --clean --noconfirm --onedir --windowed --name $app.Name --icon 'assets\sacred-app-icon.ico' --add-data 'assets;assets' --add-data 'web;web' --collect-all webview $app.Entry
     if ($LASTEXITCODE -ne 0) { throw "Packaging failed: $($app.Name)" }
     $destination = Join-Path 'dist' $app.Name
     $clientConfig = if (Test-Path 'client-config.json') { 'client-config.json' } else { 'client-config.example.json' }
