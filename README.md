@@ -1,6 +1,6 @@
 # Sacred Tweaks
 
-A private-group Windows member application, a separate owner Manager, and a deployable licensing service. The supplied product brief is preserved in `docs/SPECIFICATION.md`.
+A Windows member application, a separate owner Manager, and a deployable licensing service. Public paid access is issued manually by the owner as a 30-day or lifetime Sacred key. Historical tier keys remain readable, but every paid account has the same feature set unless the owner applies an explicit lock.
 
 **Release status:** source implementation for Windows validation. This source archive does **not** contain prebuilt Windows executables. Windows packaging and real Fortnite testing cannot be performed in the Linux build workspace. No backend has been deployed to a public host and no binaries have been code-signed. Read `docs/VERIFICATION.md` and `docs/REQUIREMENTS.md` for the exact validation record and outstanding work.
 
@@ -69,4 +69,4 @@ The Windows app build is separate from the hosted API.
 
 ## Standalone companion overlay
 
-The member app includes a separate Windows companion window for account status, settings preview, system shortcuts, and appearance. No widget registration is required. See [setup and limitations](docs/STANDALONE-OVERLAY.md). The optional macro studio stays in the desktop app; gameplay automation carries account and competitive risks.
+The member app includes a wide Windows companion for live macro controls, saved loadouts, profile editing, system shortcuts, and appearance. Home starts with loadouts; Performance, Measurements, and Backups & restore remain in the main app. See [setup and limitations](docs/STANDALONE-OVERLAY.md). Gameplay automation carries account and competitive risks.

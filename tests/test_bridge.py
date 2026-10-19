@@ -9,12 +9,21 @@ class FakeNative:
         self.permissions, self.deadline, self.stops = {}, 0, []
     def set_authorization(self, permissions, enforced, deadline):
         self.permissions, self.deadline = permissions, deadline
+    def set_account(self, account_id):
+        self.account_id = account_id
     def stop(self, reason):
         self.stops.append(reason)
     def call(self, action, payload):
         return {"action": action}
     def close(self):
         pass
+
+
+class MemoryVault:
+    def __init__(self, token=None): self.token=token
+    def save(self, token): self.token=token
+    def load(self): return self.token
+    def clear(self): self.token=None
 
 
 class BridgeTests(unittest.TestCase):
@@ -40,6 +49,41 @@ class BridgeTests(unittest.TestCase):
         self.now = 126
         self.assertFalse(self.api.local("macro_enable", {"enabled": True})["ok"])
         self.assertTrue(self.api.local("restore", {"backup_id": "a"})["ok"])
+
+    def test_remember_me_stores_refresh_token_privately_and_signout_clears_it(self):
+        vault=MemoryVault()
+        def transport(method,path,data,token):
+            if path=='/v1/auth/login':
+                self.assertTrue(data['remember_me'])
+                return {**self.session,'refresh_token':'refresh-secret-value-12345678901234567890123456789012'}
+            return {'message':'Signed out.'}
+        api=Api('member',self.tmp.name,'https://api.example.com',self.native,device_id='test-device',transport=transport,clock=lambda:self.now,session_vault=vault)
+        result=api.request('POST','/v1/auth/login',{'username':'Tester','password':'secret','remember_me':True})
+        self.assertNotIn('refresh_token',str(result))
+        self.assertEqual(vault.token,'refresh-secret-value-12345678901234567890123456789012')
+        api.request('POST','/v1/auth/logout')
+        self.assertIsNone(vault.token)
+
+    def test_bootstrap_rotates_saved_refresh_secret_and_resumes(self):
+        vault=MemoryVault('saved-refresh-secret-12345678901234567890123456789012')
+        def transport(method,path,data,token):
+            self.assertEqual(path,'/v1/auth/refresh')
+            self.assertEqual(data['refresh_token'],vault.token)
+            return {**self.session,'refresh_token':'rotated-refresh-secret-12345678901234567890123456789012'}
+        api=Api('member',self.tmp.name,'https://api.example.com',self.native,device_id='test-device',transport=transport,clock=lambda:self.now,session_vault=vault)
+        result=api.bootstrap()['data']
+        self.assertIn('session',result)
+        self.assertNotIn('refresh_token',str(result))
+        self.assertEqual(vault.token,'rotated-refresh-secret-12345678901234567890123456789012')
+
+    def test_diagnostics_allowlist_excludes_credentials_and_account_content(self):
+        self.api._token='SENTINEL_ACCESS_TOKEN'
+        self.api._session={'username':'SENTINEL_USERNAME','password':'SENTINEL_PASSWORD','recovery_code':'SENTINEL_CODE'}
+        report=self.api.diagnostics_snapshot()
+        encoded=str(report)
+        for secret in ('SENTINEL_ACCESS_TOKEN','SENTINEL_USERNAME','SENTINEL_PASSWORD','SENTINEL_CODE'):
+            self.assertNotIn(secret,encoded)
+        self.assertEqual(set(report),{'product','version','mode','platform','component'})
     def test_manager_rejects_member_and_logs_it_out(self):
         self.api._mode = "manager"
         result = self.login()
@@ -130,7 +174,8 @@ class BridgeTests(unittest.TestCase):
         target = Path(self.tmp.name) / 'theme.json'
         target.write_text(json.dumps(theme))
         result = self.api.bootstrap()['data']
-        self.assertEqual(result['theme']['intensity'], .25)
+        self.assertTrue(result['theme']['animations_enabled'])
+        self.assertEqual(result['theme']['surface'], '#111318')
         self.assertTrue(result['reduced_motion'])
         target.write_text('{broken')
         self.assertNotIn('theme', self.api.bootstrap()['data'])

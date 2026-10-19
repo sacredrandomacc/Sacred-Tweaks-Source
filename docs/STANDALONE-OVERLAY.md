@@ -22,15 +22,31 @@ reserved for the desktop app's emergency stop.
    used. Use the Appearance page to change the key if Tab conflicts with a
    game binding.
 
-The companion is a separate topmost desktop window. When hidden it has no
-visible or invisible input rectangle, so Windows delivers input to the active
-application. Switching away from Fortnite closes the menu; returning to it
-makes the hotkey available again. Closing and restarting Fortnite is handled
-the same way. The app watches foreground window identity and key state; it does
-not inject into Fortnite, inspect its memory, hook its renderer, or change its
-files to draw the interface.
-The companion's WebView2 window is initialized after Fortnite first takes
-focus. Allow a moment on the first launch before pressing the hotkey.
+The companion has four pages: Home, Macros, Windows, and Appearance. Home previews
+and applies saved loadouts; applying always releases current inputs and starts
+macros disabled. Macros shows individual enable switches and emergency stop,
+and lets members edit saved profile names, keybinds, and timing. Saving a profile
+does not load or enable it. Configure new macros in the main app. Performance,
+Measurements, and Backups & Restore remain in the main app.
+
+In Appearance, customize the shortcut, panel position (Center, Left, Right),
+opacity, accent color, and reduced motion. Wide is the only size for now; old
+Compact and Standard preferences are upgraded to Wide on launch. Use
+Reset to default to restore the original appearance. The overlay is a separate
+topmost desktop window. When hidden it has no visible or interactive input
+area, so Windows delivers input to the active application. Switching away from
+Fortnite closes the menu; returning makes the hotkey available again. Closing
+and restarting Fortnite is handled the same way. The app watches foreground
+window identity and key state; it does not inject into Fortnite, inspect its
+memory, hook its renderer, or change its files to draw the interface.
+
+If display scaling clips the controls, click the ↺ button in the header or
+press **Ctrl+Shift+0** while the companion is focused to restore Wide size
+and Center position. If even that is inaccessible, close Sacred
+Tweaks and rename `%LOCALAPPDATA%\SacredTweaks\overlay-preferences.json` before
+reopening it; the defaults will be recreated.
+The companion's hidden WebView2 window is initialized when the member app
+starts. Allow it to load before pressing the hotkey for the first time.
 
 If Sacred Tweaks freezes at startup, close it in Task Manager, then open
 PowerShell in the extracted `Sacred Tweaks` folder and run:
@@ -51,7 +67,7 @@ If the panel is visible but not interactive, click the panel once and retry;
 report the Windows and Fortnite display modes for diagnosis. The app is not
 officially approved or guaranteed ban safe. Avoid using third-party software
 where a game or event disallows it. The separate desktop macro studio has
-additional gameplay automation risks and is not shown in this companion.
+additional gameplay automation risks; the overlay can toggle configured macros.
 
 ## Build from source
 
@@ -67,10 +83,10 @@ packages both apps, and launches each for a WebView2 smoke test unless
 
 ## Validation boundary
 
-Source checks and simulated controller tests cover edge-triggered hotkeys,
-full-window hiding, focus restoration calls, Alt-Tab, game restart, changing
-window bounds, preference persistence, and account-data minimization. Only a
-Windows computer running Fortnite can verify actual topmost visibility, mouse
-interaction, focus policy, display scaling, resolution changes, and anti-cheat
-compatibility. Test these on your own PC in a permitted environment before
-relying on the companion.
+Unit and source smoke checks cover edge-triggered hotkeys, full-window hiding,
+focus restoration calls, Alt-Tab, game restart, clamped size/position within
+changing window bounds, preference persistence, permission-gated profile
+editing, and account-data minimization. Only a Windows computer running
+Fortnite can verify actual topmost visibility, mouse interaction, focus policy,
+display scaling, resolution changes, and anti-cheat compatibility. Test these
+on your own PC in a permitted environment before relying on the companion.

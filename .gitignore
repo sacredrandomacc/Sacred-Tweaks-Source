@@ -22,3 +22,6 @@ gamebar/obj/
 gamebar/AppPackages/
 *.pfx
 *.cer
+
+.worktrees/
+.superpowers/

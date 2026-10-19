@@ -11,7 +11,9 @@ CREATE TABLE IF NOT EXISTS users (
  license_id INTEGER UNIQUE REFERENCES licenses(id), created_at REAL NOT NULL,
  device_hash TEXT, banned INTEGER NOT NULL DEFAULT 0, ban_until REAL, ban_reason TEXT,
  totp_secret TEXT, totp_last_step INTEGER NOT NULL DEFAULT -1,
- last_transfer_at REAL, last_reset_at REAL
+ last_transfer_at REAL, last_reset_at REAL,
+ moderation_status TEXT NOT NULL DEFAULT 'clear', moderation_category TEXT,
+ moderation_policy_version INTEGER NOT NULL DEFAULT 1
 );
 CREATE UNIQUE INDEX IF NOT EXISTS sole_owner ON users(role) WHERE role='owner';
 CREATE TABLE IF NOT EXISTS sessions (
@@ -19,6 +21,11 @@ CREATE TABLE IF NOT EXISTS sessions (
  user_id INTEGER NOT NULL REFERENCES users(id), created_at REAL NOT NULL,
  renewed_at REAL NOT NULL, lease_until REAL NOT NULL, absolute_until REAL NOT NULL,
  revoked INTEGER NOT NULL DEFAULT 0, snapshot TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS refresh_sessions (
+ id INTEGER PRIMARY KEY, token_hash TEXT NOT NULL UNIQUE,
+ user_id INTEGER NOT NULL REFERENCES users(id), created_at REAL NOT NULL,
+ expires_at REAL NOT NULL, used_at REAL, revoked INTEGER NOT NULL DEFAULT 0
 );
 CREATE UNIQUE INDEX IF NOT EXISTS one_active_session ON sessions(user_id) WHERE revoked=0;
 CREATE TABLE IF NOT EXISTS recovery_codes (
@@ -62,7 +69,20 @@ CREATE TABLE IF NOT EXISTS alerts (
  id INTEGER PRIMARY KEY, user_id INTEGER REFERENCES users(id),
  kind TEXT NOT NULL, message TEXT NOT NULL, created_at REAL NOT NULL
 );
+CREATE TABLE IF NOT EXISTS reactions (
+ content_id INTEGER NOT NULL REFERENCES content(id), user_id INTEGER NOT NULL REFERENCES users(id),
+ reaction TEXT NOT NULL, created_at REAL NOT NULL, PRIMARY KEY(content_id, user_id)
+);
+CREATE TABLE IF NOT EXISTS poll_votes (
+ content_id INTEGER NOT NULL REFERENCES content(id), user_id INTEGER NOT NULL REFERENCES users(id),
+ option INTEGER NOT NULL, created_at REAL NOT NULL, PRIMARY KEY(content_id, user_id)
+);
+CREATE TABLE IF NOT EXISTS feedback_replies (
+ feedback_id INTEGER PRIMARY KEY REFERENCES feedback(id), message TEXT NOT NULL,
+ author_id INTEGER NOT NULL REFERENCES users(id), created_at REAL NOT NULL
+);
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 INSERT OR IGNORE INTO settings VALUES ('transfer_cooldown_hours', '168');
 INSERT OR IGNORE INTO settings VALUES ('reset_cooldown_hours', '24');
-PRAGMA user_version=1;
+PRAGMA user_version=3;
+INSERT OR IGNORE INTO settings VALUES ('maintenance', '{"enabled": false, "message": ""}');

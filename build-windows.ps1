@@ -22,6 +22,20 @@ foreach ($app in @(@{Name='Sacred Tweaks'; Entry='member.py'}, @{Name='Sacred Tw
     $archiveName = $app.Name.Replace(' ', '-') + '-Windows-x64.zip'
     Compress-Archive -Path $destination -DestinationPath (Join-Path 'dist' $archiveName) -Force
 }
+# Single-file auto-updater for the member app only. The Manager stays a manual download.
+$updaterConfig = if (Test-Path 'client-config.json') { 'client-config.json' } else { 'client-config.example.json' }
+# Bundle it under the name the updater reads, whichever file it came from.
+$stage = Join-Path 'build' 'updater-config'
+New-Item -ItemType Directory -Force $stage | Out-Null
+Copy-Item $updaterConfig (Join-Path $stage 'client-config.json') -Force
+& $pythonExe -m PyInstaller --clean --noconfirm --onefile --windowed --name 'Sacred Tweaks Updater' --icon 'assets\sacred-app-icon.ico' --add-data "$(Join-Path $stage 'client-config.json');." --collect-submodules tkinter updater.py
+if ($LASTEXITCODE -ne 0) { throw 'Packaging failed: updater' }
+Set-Content -Path (Join-Path 'dist' 'Sacred Tweaks\sacred-version.txt') -Value (& $pythonExe -c "from desktop.bridge import VERSION; print(VERSION)")
+$memberZip = Join-Path 'dist' 'Sacred-Tweaks-Windows-x64.zip'
+Compress-Archive -Path (Join-Path 'dist' 'Sacred Tweaks') -DestinationPath $memberZip -Force
+$hash = (Get-FileHash $memberZip -Algorithm SHA256).Hash.ToLower()
+Set-Content -Path (Join-Path 'dist' 'Sacred-Tweaks-Windows-x64.sha256.txt') -Value $hash
+Write-Host "Member package SHA-256 (paste into the Manager release): $hash"
 if (-not $SkipSmokeTest) {
     foreach ($appName in @('Sacred Tweaks', 'Sacred Tweaks Manager')) {
         $process = Start-Process -FilePath (Join-Path (Join-Path 'dist' $appName) "$appName.exe") -ArgumentList '--smoke-test' -PassThru

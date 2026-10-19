@@ -16,7 +16,7 @@ class PostgresTests(existing.ServiceTests):
         service = PostgresService(URL, clock=lambda: self.now, password_cost=1024)
         service.initialize_schema()
         with service.connect() as db:
-            db.execute('TRUNCATE licenses, users, sessions, recovery_codes, reset_credentials, devices, transfers, profiles, content, feedback, audit, alerts, rate_limits RESTART IDENTITY CASCADE')
+            db.execute('TRUNCATE licenses, users, sessions, refresh_sessions, recovery_codes, reset_credentials, devices, transfers, profiles, content, feedback, audit, alerts, rate_limits RESTART IDENTITY CASCADE')
         return service
 
     def database_text(self):

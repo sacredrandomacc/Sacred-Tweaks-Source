@@ -8,11 +8,13 @@ const root = path.resolve(__dirname, '..');
 const screenshots = process.env.SACRED_SCREENSHOTS || path.join(root, 'artifacts', 'screenshots');
 fs.mkdirSync(screenshots, {recursive:true});
 const fixture = ({mode, tier}) => {
-  const features = ['single_edit','performance','measurements','themes','potato','filter_keys','owner_presets','drag','advanced','profiles','beta','prefire','pickup','wall_replace','auto_build','mantle','quick_reset','floor_cone'];
+  const features = ['single_edit','performance','measurements','themes','potato','filter_keys','owner_presets','drag','advanced','profiles','beta','prefire','pickup','wall_replace','auto_build','mantle','quick_reset','floor_cone','double_edit','gun_pullout'];
   const floors = [0,0,0,0,1,2,2,3,3,3,3,3,3,3,3,3,3,3];
   const level = ['Core','Plus','Pro','Elite'].indexOf(tier);
-  let macro = {kind:'single_edit',enabled:false,active:false,available:true,game_running:false,reason:'Disabled after login',config:{activation:'F',edit:'E',select:'MOUSE1',confirm:'E',emergency:'F8',step_delay_ms:20,repeat_ms:150,confirm_mode:'manual',game_auto_confirm:false}};
-  const session = {user:{id:mode==='manager'?1:2,username:mode==='manager'?'TestOwner':'TestMember',role:mode==='manager'?'owner':'member'},tier,permissions:Object.fromEntries(features.map((f,i)=>[f,mode==='manager'||level>=floors[i]])),enforced:{},overrides:{},expires_at:null,lease_seconds:25,welcome:{}};
+  let macro = {kind:'single_edit',enabled:false,active:false,available:true,game_running:false,reason:'Disabled after login',config:{activation:'F',edit:'E',select:'MOUSE1',confirm:'E',emergency:'F8',toggle:'F9',step_delay_ms:20,repeat_ms:150,press_ms:15,confirm_mode:'manual',game_auto_confirm:false}};
+  macro.macros={single_edit:{kind:'single_edit',config:macro.config,enabled:false,reason:'Disabled after login'}};
+  macro.catalog={single_edit:macro.config};
+  const session = {user:{id:mode==='manager'?1:2,username:mode==='manager'?'TestOwner':'TestMember',role:mode==='manager'?'owner':'member'},tier:'Sacred',permissions:Object.fromEntries(features.map(f=>[f,true])),enforced:{},overrides:{},expires_at:null,lease_seconds:25,welcome:{}};
   const license = {id:1,key_hint:'…TEST',tier,duration_days:30,redeemed_at:1800000000,expires_at:1900000000,status:'active',overrides:{},enforced:{},welcome:{},permanent:false};
   const user = {...session.user,id:2,username:'TestMember',role:'member',license_id:1,created_at:1800000000,banned:0};
   const content = {presets:[{id:1,name:'Owner FPS preset',version:1,body:{preset:'performance',target_fps:144},channel:'stable'}],announcements:[{id:2,name:'Welcome to Sacred',body:{message:'Test fixture: your workspace is ready.'},channel:'stable'}],releases:[{id:3,name:'0.1.0',channel:'stable',body:{notes:'Test release.',url:'https://downloads.example.com/test.zip',version:'0.1.0'}}],welcomes:[]};
@@ -50,9 +52,13 @@ const fixture = ({mode, tier}) => {
       let result={};
       if(action==='hardware')result={cpu:'AMD Ryzen 7 5700G',gpu:'AMD Radeon RX 7600',ram_gb:32,windows:'Windows 11 · test fixture',display:{width:1920,height:1080,refresh_hz:144}};
       else if(action==='macro_status')result=macro;
-      else if(action==='macro_configure'){macro={...macro,...data,enabled:false};result=macro;}
-      else if(action==='macro_enable'){macro.enabled=data.enabled;result=macro;}
+      else if(action==='macro_configure'){macro={...macro,...data,enabled:false,macros:{...macro.macros,[data.kind]:{kind:data.kind,config:data.config,enabled:false,reason:'Ready'}}};result=macro;}
+      else if(action==='macro_enable'){macro.macros[data.kind].enabled=data.enabled;macro.enabled=Object.values(macro.macros).some(m=>m.enabled);result=macro;}
       else if(action==='emergency_stop'){macro.enabled=false;result=macro;}
+      else if(action==='macro_warning')result={acknowledged:true};
+      else if(action==='loadout_list')result={loadouts:[]};
+      else if(action==='loadout_save')result={id:'fixture',name:data.name,macros:macro.macros,appearance:{accent:'#9A82F7'}};
+      else if(action==='macro_preferences')result={...macro,editing_conflicts:data.editing_conflicts};
       else if(action==='backups')result={backups:[{id:'testbackup',kind:'fortnite',created_at:1800000000,status:'applied'}]};
       else if(action==='restore')result={success:true,restored:['FrameRateLimit'],conflicts:[],errors:[]};
       else if(action==='settings_preview')result={plan_id:'test-plan',preset:data.preset,target_fps:data.target_fps,changes:[{section:'/Script/FortniteGame.FortGameUserSettings',key:'FrameRateLimit',current:'60.000000',proposed:'144.000000'}],tradeoffs:['VSync off may cause screen tearing.'],skipped:[],compatibility:'Test fixture values; no game files accessed.',restart_required:true,administrator_required:false};
@@ -82,7 +88,7 @@ const fixture = ({mode, tier}) => {
   const browser=await chromium.launch({headless:true,...(process.env.SACRED_CHROMIUM?{executablePath:process.env.SACRED_CHROMIUM}:{}),args:['--no-sandbox']});
   const results=[];
   try{
-    for(const [mode,tier] of [['member','Core'],['member','Plus'],['member','Pro'],['member','Elite'],['manager','Elite']]){
+    for(const [mode,tier] of [['member','Sacred'],['manager','Sacred']]){
       const context=await browser.newContext({viewport:{width:1280,height:900},reducedMotion:'reduce'});
       await context.addInitScript(fixture,{mode,tier});
       const page=await context.newPage();const errors=[];
@@ -91,7 +97,7 @@ const fixture = ({mode, tier}) => {
       await page.locator('form[data-form="login"]').waitFor();
       await page.waitForFunction(()=>[...document.querySelectorAll('img.sacred-app-icon')].every(i=>i.complete&&i.naturalWidth>0));
       await page.screenshot({path:path.join(screenshots,`${mode}-${tier}-login.png`),fullPage:true});
-      if(mode==='member'&&tier==='Core'){
+      if(mode==='member'&&tier==='Sacred'){
         await page.locator('[data-action="open-restore"]').click();
         await page.locator('[data-action="restore-backup"]').click();
         await page.locator('[data-action="confirm-operation"]').click();
@@ -113,7 +119,7 @@ const fixture = ({mode, tier}) => {
       await page.screenshot({path:path.join(screenshots,`${mode}-${tier}-menu.png`),fullPage:true});
       await page.locator('.breadcrumbs').click();
       assert.equal(await page.locator('.account-menu').count(),0);
-      const views=mode==='manager'?['admin-overview','admin-users','admin-licenses','admin-transfers','admin-content','admin-feedback','admin-audit','admin-settings']:tier==='Elite'?['dashboard','performance','macros','filter','profiles','measurements','backups','theme','account']:['dashboard','performance','filter'];
+      const views=mode==='manager'?['admin-overview','admin-users','admin-licenses','admin-transfers','admin-content','admin-feedback','admin-audit','admin-settings']:['dashboard','performance','macros','filter','profiles','measurements','backups','misc','theme','account'];
       for(const view of views){
         await page.locator(`nav [data-nav="${view}"]`).click();
         await page.locator('#view-content .loading').waitFor({state:'detached'});
@@ -121,12 +127,6 @@ const fixture = ({mode, tier}) => {
         await page.screenshot({path:path.join(screenshots,`${mode}-${tier}-${view}.png`),fullPage:true});
         const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth+1);
         assert.equal(overflow,false,`${mode}/${tier}/${view} overflow`);
-        if(mode==='member'&&tier==='Core'&&view==='performance'){
-          const locks=page.locator('.lock-layer');assert(await locks.count()>0);
-          await locks.first().focus();await page.keyboard.press('Enter');
-          await page.getByText('contact the owner for upgrading',{exact:true}).waitFor();
-          assert.equal(await page.locator('.locked-controls input:enabled').evaluateAll(nodes=>nodes.some(n=>!n.closest('[inert]'))),false);
-        }
       }
       if(mode==='manager'){
         for(const [view,action,name] of [['admin-users','user-detail','member-details'],['admin-licenses','license-detail','license-overrides'],['admin-licenses','generate-licenses','generate-licenses'],['admin-content','preview-welcome','welcome-preview']]){
@@ -147,7 +147,7 @@ const fixture = ({mode, tier}) => {
         const publish=await page.evaluate(()=>window.__calls.find(c=>c.method==='POST'&&c.url==='/v1/admin/content'));
         assert.equal(publish.data.body.url,'https://downloads.example.com/sacred.zip');
       }
-      if(mode==='member'&&tier==='Elite'){
+      if(mode==='member'&&tier==='Sacred'){
         await page.locator('nav [data-nav="account"]').click();
         await page.locator('[data-action="release-details"]').click();
         await page.getByRole('heading',{name:'Download 0.1.0'}).waitFor();
@@ -171,10 +171,10 @@ const fixture = ({mode, tier}) => {
         await page.screenshot({path:path.join(screenshots,'member-Elite-settings-preview.png'),fullPage:true});
         await page.locator('[data-action="close-modal"]').first().click();
         await page.locator('nav [data-nav="macros"]').click();
-        for(const kind of ['prefire','pickup','wall_replace','auto_build','mantle','quick_reset','floor_cone']) {
+        for(const kind of ['prefire','pickup','wall_replace','auto_build','mantle','quick_reset','floor_cone','double_edit','gun_pullout']) {
           await page.locator(`[data-kind="${kind}"]`).click();
           await page.locator('form[data-form="extended-macro"]').waitFor();
-          assert.match(await page.locator('main').innerText(),/Detection likelihood is unknown/);
+        assert.match(await page.locator('main').innerText(),/Timing is best effort/);
           await page.locator('form[data-form="extended-macro"] button[type="submit"]').click();
           await page.waitForTimeout(100);
           const last=await page.evaluate(()=>window.__calls.filter(c=>c.action==='macro_configure').at(-1));

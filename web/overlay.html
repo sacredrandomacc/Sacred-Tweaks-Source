@@ -7,32 +7,53 @@
  <title>Sacred Tweaks • Companion</title>
  <link rel="icon" href="../assets/sacred-app-icon.png">
  <link rel="stylesheet" href="overlay.css">
+ <link rel="stylesheet" href="effects.css">
+ <script defer src="themes.js"></script>
+ <script defer src="sound.js"></script>
+ <script defer src="particles.js"></script>
+ <script defer src="select.js"></script>
  <script defer src="overlay.js"></script>
+ <script defer src="motion.js"></script>
 </head>
 <body>
  <div class="shell">
   <aside class="rail">
-   <div class="brand"><img src="../assets/sacred-app-icon.png" alt=""><span><strong>SACRED</strong><small>TWEAKS / COMPANION</small></span></div>
-   <div class="rail-label">CONTROL ROOM</div>
-   <nav aria-label="Overlay pages">
-    <button class="nav active" data-page="overview"><span class="symbol">◈</span> Overview</button>
-    <button class="nav" data-page="performance"><span class="symbol">▥</span> Performance</button>
-    <button class="nav" data-page="windows"><span class="symbol">▣</span> Windows</button>
-    <button class="nav" data-page="appearance"><span class="symbol">✦</span> Appearance</button>
+   <div class="brand"><img src="../assets/sacred-app-icon.png" alt=""><span><strong>SACRED</strong><small>MECHANICS</small></span></div>
+   <nav aria-label="Mechanic categories">
+    <button class="nav" data-page="home" data-cat="editing"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z M13.5 6.5l4 4"/></svg><span>Editing</span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+    <button class="nav" data-page="home" data-cat="building"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z M12 12l8-4.5 M12 12v9 M12 12 4 7.5"/></svg><span>Building</span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+    <button class="nav" data-page="home" data-cat="movement"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 10-13h-7z"/></svg><span>Movement</span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+    <button class="nav" data-page="home" data-cat="utility"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z M10.5 2h3l.6 2.6 2.3 1 2.3-1.4 2.1 2.1-1.4 2.3 1 2.3 2.6.6v3l-2.6.6-1 2.3 1.4 2.3-2.1 2.1-2.3-1.4-2.3 1-.6 2.6h-3l-.6-2.6-2.3-1-2.3 1.4-2.1-2.1 1.4-2.3-1-2.3L2 13.5v-3l2.6-.6 1-2.3-1.4-2.3 2.1-2.1 2.3 1.4 2.3-1z"/></svg><span>Utility</span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+   </nav>
+   <div class="rail-label">TOOLS</div>
+   <nav aria-label="Companion tools">
+    <button class="nav" data-page="home" data-cat="keybinds"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3z"/></svg><span>Keybinds</span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+    <button class="nav" data-page="home" data-cat="loadouts"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4 7l8 4 8-4z M4 12l8 4 8-4 M4 17l8 4 8-4"/></svg><span>Loadouts</span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+    <button class="nav" data-page="home" data-cat="session"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21a8.5 8.5 0 1 0 0-17 8.5 8.5 0 0 0 0 17z M12 8v4.5l3 2 M9.5 2.5h5"/></svg><span>Session</span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+    <button class="nav" data-page="home" data-cat="practice"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M12 16.5a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9z M12 12h.01"/></svg><span>Practice</span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+    <button class="nav" data-page="home" data-cat="notes"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z M8.5 12h7 M8.5 15.5h7 M8.5 8.5h3"/></svg><span>Notes</span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+    <button class="nav" data-page="home" data-cat="system"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7h8a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1z M10 10h4v4h-4z M9.5 3v4 M14.5 3v4 M9.5 17v4 M14.5 17v4 M3 9.5h4 M3 14.5h4 M17 9.5h4 M17 14.5h4"/></svg><span>System</span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+   </nav>
+   <div class="rail-label">MISC</div>
+   <nav aria-label="Companion pages">
+    <button class="nav plain" data-page="macros"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg><span>Profiles</span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+    <button class="nav plain" data-page="windows"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h18v12H3z M8 20h8 M12 16v4"/></svg><span>Windows</span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+    <button class="nav plain" data-page="appearance"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10 M18 6h2 M4 12h4 M12 12h8 M4 18h12 M14 4v4 M8 10v4 M16 16v4"/></svg><span>Settings</span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
    </nav>
    <div class="rail-foot"><span class="live-dot"></span><span id="rail-status">Waiting for app</span><small>ESC or hotkey to close</small></div>
   </aside>
   <div class="workspace">
    <header class="header">
-    <div><div class="overline" id="eyebrow">FORTNITE COMPANION</div><h1 id="title">Overview</h1></div>
+    <div><div class="overline" id="eyebrow">FORTNITE COMPANION</div><h1 id="title">Mechanics</h1></div>
     <div class="header-actions">
+     <button class="close reset-layout" id="reset-layout" aria-label="Reset overlay size and position" title="Reset overlay size and position">↺</button>
      <button id="account-button" class="account" aria-expanded="false"><span id="avatar" class="avatar">S</span><span><strong id="username">Signed out</strong><small id="license-time">Open Sacred Tweaks to sign in</small></span><span class="chevron">⌄</span></button>
      <button class="close" id="close-button" aria-label="Close overlay">×</button>
      <div class="account-popover" id="account-popover" hidden></div>
     </div>
    </header>
    <main class="content" id="content" aria-live="polite"></main>
-   <footer><span>EXTERNAL DESKTOP COMPANION</span><span id="footer-key">TAB TO CLOSE</span><span>© 2026 SACRED LLC</span></footer>
+   <footer><span>EXTERNAL DESKTOP COMPANION</span><span id="footer-key">TAB TO CLOSE</span><span>WINDOWED FULLSCREEN</span></footer>
   </div>
  </div>
  <div id="toast" role="status" aria-live="polite"></div>

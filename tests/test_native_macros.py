@@ -52,6 +52,7 @@ class MacroTests(unittest.TestCase):
         self.engine.input('F', False, 2, True)
         self.engine.tick(2.1, True)
         self.engine.tick(3, True)
+        self.engine.tick(3.1, True)
         self.assertEqual(len(self.sink.events), 12)
 
     def test_drag_releases_and_auto_confirms(self):
@@ -59,6 +60,7 @@ class MacroTests(unittest.TestCase):
         self.engine.input('E', True, 0, True)
         self.assertEqual(self.sink.held, {'MOUSE1'})
         self.engine.input('E', False, .1, True)
+        self.engine.tick(.12, True)
         self.assertEqual(self.sink.events[-3:], [('MOUSE1', False), ('G', True), ('G', False)])
         self.assertFalse(self.sink.held)
 
@@ -108,7 +110,17 @@ class MacroTests(unittest.TestCase):
         self.assertEqual(self.sink.events, [])
         self.engine.input('E', True, 0, True)
         self.engine.input('E', True, .001, True, injected=True)
-        self.assertEqual(len(self.sink.events), 2)
+        self.engine.tick(.02, True)
+        self.assertEqual(self.sink.events.count(('E', True)), 1)
+
+    def test_rapid_second_press_does_not_overlap_pending_key_release(self):
+        self.enable()
+        self.engine.input('F', True, 0, True)
+        self.engine.input('F', False, .001, True)
+        self.engine.input('F', True, .002, True)
+        self.assertEqual(self.sink.events.count(('E', True)), 1)
+        self.engine.tick(.02, True)
+        self.assertNotIn('E', self.sink.held)
 
     def test_unrelated_input_not_retained_or_recorded(self):
         self.enable()

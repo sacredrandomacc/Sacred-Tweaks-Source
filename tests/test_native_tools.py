@@ -60,6 +60,54 @@ class NativeBoundaryTests(unittest.TestCase):
             with self.assertRaises(PermissionError):
                 self.native.call(action, {})
 
+    def test_appearance_stores_toggle_and_adjustable_palette(self):
+        self.authorize()
+        saved=self.native.call('theme',{'animations_enabled':False,'lightweight':True,
+            'accent':'#123456','surface':'#202124','text_color':'#F0EFEA','muted_color':'#B0B1B5','reduced_motion':True})
+        self.assertFalse(saved['animations_enabled'])
+        self.assertEqual(saved['surface'],'#202124')
+        self.assertEqual(saved['text_color'],'#F0EFEA')
+        with self.assertRaises((ValueError,PermissionError)):
+            self.native.call('theme',{'animations_enabled':False,'accent':'bad','surface':'#111318'})
+
+    def test_workspace_pages_save_validated_data(self):
+        with self.assertRaises(PermissionError):
+            self.native.call('workspace_get', {'key': 'journal'})
+        self.authorize()
+        self.assertEqual(self.native.call('workspace_get', {'key': 'journal'})['value'], {})
+        self.native.call('workspace_save', {'key': 'journal', 'value': {'entries': [{'title': 'Scrim', 'body': 'Rotate early'}]}})
+        self.assertEqual(self.native.call('workspace_get', {'key': 'journal'})['value']['entries'][0]['title'], 'Scrim')
+        for bad in ({'key': '../theme', 'value': {}}, {'key': 'journal', 'value': []}, {'key': 'journal', 'value': {'x': 'y' * 70000}}):
+            with self.assertRaises(ValueError):
+                self.native.call('workspace_save', bad)
+        live = self.native.call('system_live', {})
+        self.assertIn('cpu_usage_percent', live)
+
+    def test_local_data_backup_round_trip_and_validation(self):
+        self.authorize()
+        self.native.call('workspace_save', {'key': 'journal', 'value': {'entries': [{'title': 'Win'}]}})
+        bundle = self.native.call('data_bundle', {})
+        self.assertEqual(bundle['workspace']['journal']['entries'][0]['title'], 'Win')
+        self.native.call('workspace_save', {'key': 'journal', 'value': {}})
+        restored = self.native.call('data_restore', {'bundle': bundle})['restored']
+        self.assertIn('journal', restored)
+        self.assertEqual(self.native.call('workspace_get', {'key': 'journal'})['value']['entries'][0]['title'], 'Win')
+        for bad in ({'format': 'other'}, {**bundle, 'workspace': {'secrets': {}}}, {**bundle, 'theme': {'accent': 'javascript:'}}):
+            with self.assertRaises(ValueError):
+                self.native.call('data_restore', {'bundle': bad})
+        extras = self.native.call('system_extras', {})
+        self.assertEqual(set(extras), {'startup', 'heavy', 'display'})
+
+    def test_appearance_stores_theme_preset_and_glass(self):
+        self.authorize()
+        saved=self.native.call('theme',{'animations_enabled':True,'lightweight':False,'accent':'#22D3EE',
+            'surface':'#0B1719','text_color':'#E8FAFB','muted_color':'#9DBDC0','glass':True,'preset':'aqua'})
+        self.assertTrue(saved['glass'])
+        self.assertEqual(saved['preset'],'aqua')
+        for bad in ({'glass':'yes'},{'preset':'<script>'}):
+            with self.assertRaises(ValueError):
+                self.native.call('theme',{'animations_enabled':True,'lightweight':False,'accent':'#22D3EE',**bad})
+
     def test_permission_and_enforced_value_bypass_rejected(self):
         self.authorize({'single_edit': True}, {'single_edit': {'repeat_ms': 250}})
         with self.assertRaises(PermissionError):
@@ -68,6 +116,120 @@ class NativeBoundaryTests(unittest.TestCase):
             self.native.call('macro_configure', {'kind': 'single_edit', 'config': {'repeat_ms': 150}})
         result = self.native.call('macro_configure', {'kind': 'single_edit', 'config': {'repeat_ms': 250}})
         self.assertEqual(result['config']['repeat_ms'], 250)
+
+    def test_two_macro_configs_stay_enabled_when_compatible(self):
+        self.authorize({'single_edit': True, 'pickup': True, 'quick_reset': True})
+        self.native.call('macro_configure', {'kind': 'pickup', 'config': {'activation': 'G', 'toggle': 'F11'}})
+        self.native.call('macro_configure', {'kind': 'quick_reset', 'config': {'activation': 'H', 'toggle': 'F12'}})
+        self.native.call('macro_enable', {'kind': 'pickup', 'enabled': True})
+        self.native.call('macro_enable', {'kind': 'quick_reset', 'enabled': True})
+        status = self.native.call('macro_status')
+        self.assertTrue(status['macros']['pickup']['enabled'])
+        self.assertTrue(status['macros']['quick_reset']['enabled'])
+
+    def test_newest_editing_conflict_policy(self):
+        self.authorize({'single_edit': True, 'drag': True, 'double_edit': True})
+        self.native.call('macro_configure', {'kind': 'drag', 'config': {'toggle': 'F10'}})
+        self.native.call('macro_configure', {'kind': 'double_edit', 'config': {'activation': 'G', 'toggle': 'F18'}})
+        self.native.call('macro_enable', {'kind': 'drag', 'enabled': True})
+        self.native.call('macro_enable', {'kind': 'double_edit', 'enabled': True})
+        status = self.native.call('macro_status')['macros']
+        self.assertFalse(status['drag']['enabled'])
+        self.assertTrue(status['double_edit']['enabled'])
+
+    def test_drag_activation_reaches_game_while_toggle_is_consumed(self):
+        self.authorize()
+        self.native.call('macro_configure', {'kind': 'drag', 'config': {}})
+        self.native.call('macro_enable', {'kind': 'drag', 'enabled': True})
+        with self.native.lock:
+            self.native.foreground = True
+            self.native._update_interest()
+        self.assertEqual(self.native._interested('E'), (True, False))
+        self.assertEqual(self.native._interested('F10'), (True, True))
+
+    def test_configured_emergency_key_reaches_input_worker(self):
+        self.authorize()
+        self.native.call('macro_configure', {'kind': 'drag', 'config': {'emergency': 'F7'}})
+        with self.native.lock:
+            self.native._update_interest()
+        self.assertEqual(self.native._interested('F7'), (True, False))
+
+    def test_macro_toggle_cannot_overlap_overlay_hotkey(self):
+        self.authorize()
+        with self.assertRaisesRegex(ValueError, 'overlay'):
+            self.native.call('macro_configure', {'kind': 'drag', 'config': {'toggle': 'TAB'}})
+
+    def test_loadout_saves_macro_configs_and_appearance_without_performance(self):
+        self.authorize({'single_edit': True, 'drag': True, 'themes': True})
+        self.native.set_account(42)
+        self.native.call('macro_configure', {'kind': 'drag', 'config': {'edit': 'G'}})
+        self.native.call('theme', {'accent': '#123456', 'animations_enabled': False})
+        saved = self.native.call('loadout_save', {'name': 'Arena'})
+        self.assertEqual(saved['name'], 'Arena')
+        self.assertEqual(saved['macros']['drag']['edit'], 'G')
+        self.assertEqual(saved['appearance']['accent'], '#123456')
+        self.assertNotIn('performance', saved)
+        self.native.call('macro_configure', {'kind': 'drag', 'config': {'edit': 'H'}})
+        self.native.call('loadout_apply', {'id': saved['id']})
+        self.assertEqual(self.native.call('macro_status')['macros']['drag']['config']['edit'], 'G')
+        self.assertFalse(self.native.call('macro_status')['macros']['drag']['enabled'])
+
+    def test_invalid_loadout_does_not_interrupt_running_macro(self):
+        self.authorize({'single_edit': True, 'drag': True, 'themes': True})
+        self.native.set_account(42)
+        self.native.call('macro_configure', {'kind': 'drag', 'config': {}})
+        self.native.call('macro_enable', {'kind': 'drag', 'enabled': True})
+        saved = self.native.call('loadout_save', {'name': 'Arena'})
+        path = Path(self.temp.name) / 'loadouts-42.json'
+        data = __import__('json').loads(path.read_text())
+        data[0]['macros']['drag']['edit'] = 'NOT_A_KEY'
+        path.write_text(__import__('json').dumps(data))
+        with self.assertRaises(ValueError):
+            self.native.call('loadout_apply', {'id': saved['id']})
+        self.assertTrue(self.native.call('macro_status')['macros']['drag']['enabled'])
+
+    def test_loadout_without_base_config_does_not_change_appearance(self):
+        self.authorize({'single_edit': True, 'themes': True})
+        self.native.set_account(42)
+        saved = self.native.call('loadout_save', {'name': 'Arena'})
+        path = Path(self.temp.name) / 'loadouts-42.json'
+        import json
+        rows = json.loads(path.read_text())
+        rows[0]['macros'].pop('single_edit')
+        path.write_text(json.dumps(rows))
+        with self.assertRaises(ValueError):
+            self.native.call('loadout_apply', {'id': saved['id']})
+        self.assertFalse((Path(self.temp.name) / 'theme.json').exists())
+
+    def test_loadout_save_accepts_older_theme_without_motion_field(self):
+        self.authorize({'single_edit': True, 'themes': True})
+        self.native.set_account(42)
+        (Path(self.temp.name) / 'theme.json').write_text('{"accent":"#123456","surface":"#111318","text_color":"#F2F0EA","muted_color":"#AAA9AD","animations_enabled":true,"lightweight":false}')
+        saved = self.native.call('loadout_save', {'name': 'Old theme'})
+        self.assertFalse(saved['appearance']['reduced_motion'])
+
+    def test_macro_warning_is_acknowledged_once_per_account(self):
+        self.authorize()
+        self.native.set_account(42)
+        self.assertFalse(self.native.call('macro_warning')['acknowledged'])
+        self.assertTrue(self.native.call('macro_warning', {'acknowledge': True})['acknowledged'])
+        self.native.set_account(43)
+        self.assertFalse(self.native.call('macro_warning')['acknowledged'])
+        self.native.set_account(42)
+        self.assertTrue(self.native.call('macro_warning')['acknowledged'])
+
+    def test_macro_configs_and_misc_preference_resume_disabled_after_sign_in(self):
+        self.authorize({'single_edit': True, 'pickup': True})
+        self.native.set_account(42)
+        self.native.call('macro_configure', {'kind': 'pickup', 'config': {'activation': 'G'}})
+        self.native.call('macro_preferences', {'editing_conflicts': 'allow_multiple'})
+        self.native.call('macro_enable', {'kind': 'pickup', 'enabled': True})
+        self.native.set_account(None)
+        self.native.set_account(42)
+        status = self.native.call('macro_status')
+        self.assertEqual(status['macros']['pickup']['config']['activation'], 'G')
+        self.assertEqual(status['editing_conflicts'], 'allow_multiple')
+        self.assertFalse(status['macros']['pickup']['enabled'])
 
     def test_authorization_watchdog_stops_without_frontend_calls(self):
         # Startup can include the worker's 50 ms idle wait plus OS scheduling.

@@ -9,12 +9,21 @@
   <title>Sacred Tweaks</title>
   <link rel="icon" href="assets/sacred-icon.png" type="image/png">
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="motion.css">
+  <link rel="stylesheet" href="theme.css">
+  <link rel="stylesheet" href="effects.css">
+  <script defer src="themes.js"></script>
+  <script defer src="sound.js"></script>
+  <script defer src="particles.js"></script>
+  <script defer src="select.js"></script>
   <script defer src="app.js"></script>
   <script defer src="manager.js"></script>
+  <script defer src="motion.js"></script>
 </head>
 <body>
-  <div id="app"><main class="boot"><img class="brand-mark sacred-app-icon" src="assets/sacred-icon.png" alt=""><h1>Sacred Tweaks</h1><p>Connecting to your desktop…</p><span class="spinner"></span></main></div>
+  <div id="app"><main class="boot boot-aaa" aria-busy="true"><div class="boot-grid" aria-hidden="true"></div><div class="boot-core" aria-hidden="true"><span class="boot-ring r1"></span><span class="boot-ring r2"></span><span class="boot-ring r3"></span><span class="boot-orbit"><i></i></span><span class="boot-gem"></span></div><h1 class="boot-title"><span>S</span><span>A</span><span>C</span><span>R</span><span>E</span><span>D</span></h1><div class="boot-sub">TWEAKS FOR WINDOWS</div><div class="boot-bar" role="progressbar" aria-label="Starting Sacred Tweaks"><i></i></div><p class="boot-status"><span>Starting secure workspace</span><span>Loading desktop services</span><span>Preparing your setup</span></p></main></div>
   <div id="modal-root"></div>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs><linearGradient id="sacred-icon-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--accent)"/><stop offset="1" style="stop-color:var(--accent-2)"/></linearGradient></defs></svg>
   <div id="toast-root" role="status" aria-live="polite"></div>
 </body>
 </html>

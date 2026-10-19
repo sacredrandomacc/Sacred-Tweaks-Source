@@ -17,6 +17,7 @@ class ExtendedMacros(unittest.TestCase):
         self.setup_engine('pickup', activation='F', interact='E', repeat_ms=50)
         self.engine.input('F', True, 0, True)
         self.engine.tick(1, True)
+        self.engine.tick(1.02, True)
         self.assertEqual(self.sink.events, [('E', True), ('E', False)] * 2)
         self.engine.input('F', False, 1.01, True)
         self.engine.tick(2, True)

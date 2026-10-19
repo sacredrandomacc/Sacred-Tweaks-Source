@@ -1,0 +1,144 @@
+/* Copyright (c) 2026 Sacred LLC. Motion & surface layer for the main app.
+   Loaded after styles.css. Every effect is decorative and switches off with
+   .no-motion, .lightweight, .effects-paused or the Windows reduced-motion setting. */
+:root{
+  --ease-out:cubic-bezier(.16,1,.3,1);
+  --ease-spring:cubic-bezier(.34,1.56,.64,1);
+  --glow:color-mix(in srgb,var(--accent) 38%,transparent);
+  --glow-soft:color-mix(in srgb,var(--accent) 14%,transparent);
+  --glass:color-mix(in srgb,var(--surface) 72%,transparent);
+}
+body{background:var(--bg);min-height:100vh}
+
+/* Ambient aurora behind every screen. */
+body:before,body:after{content:"";position:fixed;z-index:-1;pointer-events:none;border-radius:50%;filter:blur(90px);opacity:calc(.22 + .18 * var(--motion))}
+body:before{width:62vmax;height:62vmax;left:-18vmax;top:-24vmax;background:radial-gradient(circle,var(--accent),transparent 62%);animation:aurora-a 26s ease-in-out infinite alternate}
+body:after{width:52vmax;height:52vmax;right:-20vmax;bottom:-26vmax;background:radial-gradient(circle,#4cc2ff,transparent 60%);opacity:calc(.1 + .1 * var(--motion));animation:aurora-b 32s ease-in-out infinite alternate}
+@keyframes aurora-a{to{transform:translate(18vmax,14vmax) scale(1.15)}}
+@keyframes aurora-b{to{transform:translate(-14vmax,-10vmax) scale(.9)}}
+#app{position:relative;z-index:0}
+
+/* Glass chrome. */
+.sidebar{background:linear-gradient(180deg,color-mix(in srgb,var(--surface) 82%,#000 18%),color-mix(in srgb,var(--surface) 92%,#000 8%));backdrop-filter:blur(18px) saturate(1.3);box-shadow:inset -1px 0 0 #ffffff08}
+.topbar{background:color-mix(in srgb,var(--surface) 70%,transparent);backdrop-filter:blur(18px) saturate(1.4)}
+.topbar:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;background:linear-gradient(90deg,transparent,var(--glow),transparent);opacity:.7}
+
+/* Navigation: gliding glow, springy icons. */
+.nav button{position:relative;overflow:hidden;transition:background .25s var(--ease-out),color .25s,border-color .25s,transform .25s var(--ease-out)}
+.nav button .icon{transition:transform .35s var(--ease-spring),color .25s}
+.nav button:hover{transform:translateX(3px)}
+.nav button:hover .icon{transform:scale(1.15) rotate(-6deg);color:var(--accent)}
+.nav button.active{background:linear-gradient(90deg,var(--glow-soft),transparent);border-color:color-mix(in srgb,var(--accent) 28%,transparent);color:var(--text);box-shadow:0 0 24px -10px var(--glow)}
+.nav button.active:before{left:0;top:50%;height:22px;margin-top:-11px;box-shadow:0 0 12px var(--accent),0 0 2px var(--accent);animation:indicator-in .45s var(--ease-spring)}
+.nav button.active .icon{color:var(--accent)}
+@keyframes indicator-in{from{transform:scaleY(0);opacity:0}}
+.connection .dot,.session-pill .dot{animation:pulse-dot 2.4s ease-in-out infinite}
+@keyframes pulse-dot{0%,100%{box-shadow:0 0 0 0 #73d8b555}50%{box-shadow:0 0 0 5px #73d8b500}}
+.connection.offline .dot{animation:none}
+
+/* Page transitions: content rises in with a stagger on every navigation. */
+.content{animation:none}
+.content>*{animation:rise .6s var(--ease-out) both}
+.content>*:nth-child(2){animation-delay:.05s}.content>*:nth-child(3){animation-delay:.1s}
+.content>*:nth-child(4){animation-delay:.15s}.content>*:nth-child(5){animation-delay:.2s}
+.content>*:nth-child(6){animation-delay:.25s}.content>*:nth-child(n+7){animation-delay:.3s}
+.grid-2>*,.grid-3>*,.macro-catalog>*,.stack>.panel{animation:rise .6s var(--ease-out) both}
+.grid-2>*:nth-child(2),.grid-3>*:nth-child(2),.macro-catalog>*:nth-child(2){animation-delay:.08s}
+.grid-3>*:nth-child(3),.macro-catalog>*:nth-child(3){animation-delay:.14s}
+.macro-catalog>*:nth-child(4){animation-delay:.18s}.macro-catalog>*:nth-child(5){animation-delay:.22s}
+.macro-catalog>*:nth-child(n+6){animation-delay:.26s}
+.page-heading h1{background:linear-gradient(100deg,var(--text) 40%,color-mix(in srgb,var(--accent) 70%,var(--text)) 60%,var(--text) 80%);background-size:250% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:title-sheen 1.6s .15s var(--ease-out) both}
+@keyframes rise{from{opacity:0;transform:translateY(14px) scale(.985);filter:blur(4px)}to{opacity:1;transform:none;filter:none}}
+@keyframes title-sheen{from{background-position:100% 0}to{background-position:0 0}}
+
+/* Surfaces: cursor spotlight, lift and glowing edge on hover. */
+.panel,.macro-card,.preset-choice{position:relative;isolation:isolate;transition:transform .35s var(--ease-out),border-color .3s,box-shadow .35s var(--ease-out)}
+.panel:before,.macro-card:before,.preset-choice:before{content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;pointer-events:none;background:radial-gradient(380px circle at var(--mx,50%) var(--my,-200px),color-mix(in srgb,var(--accent) 13%,transparent),transparent 65%);opacity:0;transition:opacity .4s}
+.panel:hover:before,.macro-card:hover:before,.preset-choice:hover:before{opacity:1}
+.panel:hover{border-color:color-mix(in srgb,var(--accent) 24%,var(--line));box-shadow:0 18px 50px -24px #000c,0 0 0 1px #ffffff05}
+.tool-card:hover,.metric:hover{transform:translateY(-3px)}
+.tool-card .feature-icon,.metric-icon{transition:transform .5s var(--ease-spring),box-shadow .4s}
+.tool-card:hover .feature-icon,.metric:hover .metric-icon{transform:rotate(-8deg) scale(1.12);box-shadow:0 0 20px -4px var(--glow)}
+.card-link .icon{transition:transform .35s var(--ease-spring)}
+.tool-card:hover .card-link .icon{transform:translateX(5px)}
+.macro-card{overflow:hidden}
+.macro-card:hover{transform:translateY(-3px)}
+.macro-card.selected{border-color:var(--accent);background:linear-gradient(160deg,var(--glow-soft),transparent);box-shadow:0 0 0 1px var(--accent),0 12px 34px -14px var(--glow)}
+.macro-card.selected strong{color:#fff}
+.record{transition:background .25s,padding .3s var(--ease-out)}
+.data-table tbody tr{transition:background .2s}
+.data-table tbody tr:hover{background:#ffffff05}
+
+/* Buttons: sheen sweep, press spring, ripple. */
+.btn,.account-button{position:relative;overflow:hidden;isolation:isolate;transition:background .2s,border-color .2s,transform .25s var(--ease-spring),box-shadow .3s}
+.btn:hover{transform:translateY(-1px)}
+.btn:active{transform:scale(.97)}
+.btn.primary{background:linear-gradient(110deg,var(--accent),color-mix(in srgb,var(--accent) 72%,var(--accent-2)));border-color:color-mix(in srgb,var(--accent) 80%,#fff);box-shadow:0 6px 22px -8px var(--glow),inset 0 1px #ffffff30}
+.btn.primary:hover{background:linear-gradient(110deg,color-mix(in srgb,var(--accent) 85%,#fff),var(--accent));box-shadow:0 10px 30px -8px var(--glow),inset 0 1px #ffffff40}
+.btn.primary:after{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(105deg,transparent 35%,#ffffff40 50%,transparent 65%);transform:translateX(-120%);transition:transform .8s var(--ease-out)}
+.btn.primary:hover:after{transform:translateX(120%)}
+.btn.danger:hover{background:#e56d8622;border-color:#e56d8688;box-shadow:0 0 22px -8px #e56d86}
+.btn .icon{transition:transform .35s var(--ease-spring)}
+.btn:hover .icon{transform:translateX(2px)}
+.ripple{position:absolute;z-index:0;border-radius:50%;pointer-events:none;background:radial-gradient(circle,#ffffff38,transparent 60%);transform:scale(0);animation:ripple .7s var(--ease-out) forwards}
+@keyframes ripple{to{transform:scale(1);opacity:0}}
+
+/* Inputs: focus glow and springy switches. */
+.field input,.field select,.field textarea,.search-input{transition:border-color .2s,box-shadow .3s var(--ease-out),background .2s}
+.field input:focus,.field select:focus,.field textarea:focus,.search-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--glow-soft),0 0 18px -6px var(--glow);background:color-mix(in srgb,var(--surface) 80%,#000)}
+.switch{transition:background .3s,border-color .3s,box-shadow .3s}
+.switch:after{transition:transform .45s var(--ease-spring),background .25s,width .2s}
+.switch:active:after{width:16px}
+.switch:checked{background:var(--accent);border-color:color-mix(in srgb,var(--accent) 70%,#fff);box-shadow:0 0 14px -2px var(--glow)}
+.preset-choice:has(input:checked){border-color:var(--accent);background:var(--glow-soft);box-shadow:0 0 0 1px var(--accent)}
+
+/* Overlays: springy modal, dropdown and toast. */
+.modal-backdrop{animation:fade .3s ease-out both}
+.modal{animation:pop .5s var(--ease-spring) both;box-shadow:0 30px 120px #000c,0 0 0 1px #ffffff08,0 0 80px -30px var(--glow)}
+.account-menu{transform-origin:top right;animation:drop .35s var(--ease-spring) both}
+.toast{animation:toast-in .55s var(--ease-spring) both;backdrop-filter:blur(14px);background:color-mix(in srgb,#261a35 85%,transparent);box-shadow:0 12px 40px #0008,0 0 30px -12px var(--glow)}
+.toast.error{box-shadow:0 12px 40px #0008,0 0 30px -12px #e56d86}
+@keyframes fade{from{opacity:0}}
+@keyframes pop{from{opacity:0;transform:translateY(18px) scale(.94);filter:blur(6px)}}
+@keyframes drop{from{opacity:0;transform:translateY(-6px) scale(.92)}}
+@keyframes toast-in{from{opacity:0;transform:translate(-50%,24px) scale(.9)}to{transform:translate(-50%,0)}}
+.access-banner{animation:fade .4s ease-out both}
+.access-card{animation:pop .6s .1s var(--ease-spring) both}
+
+/* Boot, auth, welcome: the showpiece screens. */
+.boot>*{animation:rise .8s var(--ease-out) both}.boot>*:nth-child(2){animation-delay:.1s}.boot>*:nth-child(3){animation-delay:.2s}.boot>*:nth-child(4){animation-delay:.3s}
+.boot .sacred-app-icon{width:72px;height:72px;filter:drop-shadow(0 0 28px var(--glow));animation:rise .8s var(--ease-out) both,breathe 3.2s 1s ease-in-out infinite}
+@keyframes breathe{50%{filter:drop-shadow(0 0 44px var(--accent));transform:scale(1.04)}}
+.spinner{width:34px;height:34px;border:2px solid transparent;border-top-color:var(--accent);border-right-color:color-mix(in srgb,var(--accent) 40%,transparent);box-shadow:0 0 18px -4px var(--glow);animation:spin .9s cubic-bezier(.6,.2,.4,.8) infinite}
+.loading .spinner{width:20px;height:20px}
+.loading{animation:fade .4s .15s both}
+.auth-art-center:before{content:"";position:absolute;width:420px;height:420px;left:50%;top:22%;margin-left:-210px;z-index:-1;border-radius:50%;background:conic-gradient(from 0deg,transparent,var(--glow),transparent 40%,color-mix(in srgb,#4cc2ff 30%,transparent),transparent 75%);filter:blur(40px);opacity:.55;animation:spin 18s linear infinite}
+.auth-art-center{position:relative}
+.auth-art-center>*{animation:rise .9s var(--ease-out) both}
+.auth-art-center>*:nth-child(2){animation-delay:.12s}.auth-art-center>*:nth-child(3){animation-delay:.22s}.auth-art-center>*:nth-child(4){animation-delay:.32s}
+.auth-art-center>.brand-mark{animation:rise .9s var(--ease-out) both,logo-float 7s 1s ease-in-out infinite}
+.auth-art h1{background:linear-gradient(100deg,var(--text) 30%,var(--accent) 50%,var(--text) 70%);background-size:300% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:rise .9s .22s var(--ease-out) both,title-sheen 6s 1s ease-in-out infinite alternate}
+.auth-form>*{animation:rise .7s var(--ease-out) both}
+.auth-form>*:nth-child(2){animation-delay:.06s}.auth-form>*:nth-child(3){animation-delay:.12s}.auth-form>*:nth-child(4){animation-delay:.18s}.auth-form>*:nth-child(n+5){animation-delay:.24s}
+.particles{animation:drift 40s linear infinite}
+@keyframes drift{to{background-position:17px -490px,41px -280px}}
+.welcome>*{animation:rise 1s var(--ease-out) both}
+.welcome>*:nth-child(3){animation-delay:.25s}.welcome>*:nth-child(4){animation-delay:.4s}.welcome>*:nth-child(5){animation-delay:.55s}.welcome>*:nth-child(n+6){animation-delay:.7s}
+.welcome:before{animation:ring 2.4s var(--ease-out) both,spin-45 40s 2.4s linear infinite}
+.welcome:after{animation:ring 2.8s .2s var(--ease-out) both,spin-45 60s 3s linear infinite reverse}
+@keyframes ring{from{opacity:0;transform:rotate(-45deg) scale(.4)}to{opacity:1;transform:rotate(45deg) scale(1)}}
+@keyframes spin-45{from{transform:rotate(45deg)}to{transform:rotate(405deg)}}
+.hero .orbit{animation:spin 30s linear infinite;border-color:color-mix(in srgb,var(--accent) 18%,transparent)}
+.hero .orbit:nth-child(2){animation-duration:46s;animation-direction:reverse}
+.hero{background:radial-gradient(ellipse at 85% 60%,color-mix(in srgb,var(--accent) 22%,transparent),transparent 55%),linear-gradient(115deg,color-mix(in srgb,var(--surface) 82%,var(--accent)),var(--surface) 70%)}
+.tier{filter:drop-shadow(0 0 8px #ffffff10)}
+
+/* Off switches. */
+.no-motion:before,.no-motion:after,.lightweight:before,.lightweight:after,.effects-paused:before,.effects-paused:after{animation:none}
+.lightweight:before,.lightweight:after{display:none}
+.lightweight .panel:before,.lightweight .macro-card:before,.lightweight .auth-art-center:before{display:none}
+.lightweight .sidebar,.lightweight .topbar,.lightweight .toast{backdrop-filter:none}
+.effects-paused .auth-art-center:before,.effects-paused .orbit,.effects-paused .particles{animation:none}
+.no-motion .ripple{display:none}
+.no-motion .page-heading h1,.no-motion .auth-art h1{background:none;color:var(--text)}
+@media(prefers-reduced-motion:reduce){.page-heading h1,.auth-art h1{background:none;color:var(--text)}.ripple{display:none}}
