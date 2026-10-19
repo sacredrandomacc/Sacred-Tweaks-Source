@@ -98,6 +98,9 @@ def download(url, destination, expected_sha256, progress=None, allow_http=False,
     try:
         with opener(urllib.request.Request(url, headers={'User-Agent': 'SacredTweaksUpdater'}), timeout=30) as response, \
                 open(destination, 'wb') as out:
+            if 'text/html' in str(response.headers.get('Content-Type', '')).lower():
+                raise UpdateError('The release link opens a web page, not the zip file. Use a direct download link '
+                                  '(for example a GitHub Releases asset) in the Manager release.')
             total = int(response.headers.get('Content-Length') or 0)
             if total > MAX_PACKAGE_BYTES:
                 raise UpdateError('Update package is too large.')
