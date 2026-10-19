@@ -114,3 +114,15 @@ References:
 - https://vercel.com/docs/frameworks/backend/flask
 - https://vercel.com/docs/headers/request-headers
 - https://neon.com/docs/guides/vercel-overview
+
+## Upgrading the database after a new server version
+
+Requests never change the database structure. After deploying a newer server, run once:
+
+```powershell
+.\.venv\Scripts\python.exe -m server.migrate_cloud
+```
+
+Paste the same pooled Neon URL at the hidden prompt. It only adds missing tables and
+columns; accounts, licenses and content are kept. Until it runs, sign-ins that need new
+columns fail with "Service temporarily unavailable".
