@@ -13,7 +13,7 @@ import urllib.request
 from desktop.storage import SessionVault, atomic_json, load_device_id
 from desktop.profile_transfer import MAX_BYTES, encode_profile_bundle, validate_profile_bundle
 
-VERSION = "0.7.0"
+VERSION = "0.7.1"
 
 
 class ApiError(Exception):
@@ -133,7 +133,7 @@ class Api:
             headers["Authorization"] = "Bearer " + token
         req = urllib.request.Request(self._api_url + path, data=body, headers=headers, method=method)
         try:
-            with urllib.request.build_opener(NoRedirect).open(req, timeout=5) as response:
+            with urllib.request.build_opener(NoRedirect).open(req, timeout=20) as response:  # Cold Vercel + database wake-up can take >5 s.
                 raw = response.read(2 * 1024 * 1024 + 1)
                 if len(raw) > 2 * 1024 * 1024:
                     raise ApiError("Service response is too large.")
