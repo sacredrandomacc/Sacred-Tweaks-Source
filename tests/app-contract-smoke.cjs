@@ -1,0 +1,55 @@
+const fs=require('node:fs');
+const vm=require('node:vm');
+const assert=require('node:assert/strict');
+for(const file of ['web/app.js','web/manager.js','web/overlay.js','web/motion.js','web/sound.js','web/themes.js','web/particles.js','web/select.js']) new vm.Script(fs.readFileSync(file,'utf8'),{filename:file});
+const app=fs.readFileSync('web/app.js','utf8');
+const manager=fs.readFileSync('web/manager.js','utf8');
+const overlay=fs.readFileSync('web/overlay.html','utf8');
+const styles=fs.readFileSync('web/styles.css','utf8');
+assert.doesNotMatch(styles,/body\.effects-paused \*\{animation-play-state:paused/);
+assert.doesNotMatch(styles,/body\.lightweight \*\{animation-play-state:paused/);
+assert.match(app,/name="remember_me"/);
+assert.match(app,/data\.remember_me==='on'/);
+assert.match(app,/animations_enabled/);
+assert.doesNotMatch(app,/name="intensity" type="range"/);
+assert.match(app,/function featureHelp\(view\)/);
+assert.match(app,/profile-import-confirm/);
+assert.match(app,/export-diagnostics/);
+assert.match(app,/state\.auth='review'/);
+assert.match(manager,/admin-moderation/);
+assert.match(manager,/moderation-approve/);
+assert.match(overlay,/Profiles/);
+assert.match(overlay,/Settings/);
+const motion=fs.readFileSync('web/motion.css','utf8'),overlayMotion=fs.readFileSync('web/overlay.css','utf8'),themesJs=fs.readFileSync('web/themes.js','utf8');
+assert.match(fs.readFileSync('web/index.html','utf8'),/href="motion\.css"[\s\S]*src="motion\.js"/);
+assert.match(overlay,/src="themes\.js"[\s\S]*src="sound\.js"[\s\S]*src="overlay\.js"/);
+assert.match(motion,/prefers-reduced-motion:reduce/);assert.match(motion,/\.lightweight:before/);assert.match(motion,/\.no-motion \.ripple/);
+assert.match(overlayMotion,/prefers-reduced-motion:reduce/);assert.match(overlayMotion,/body\[data-reduced=true\] \.ripple/);
+console.log('Main-app source contracts and JavaScript syntax passed.');
+{
+  const count=(themesJs.match(/^    '[a-z0-9-]+':\['[^']+','#[0-9A-F]{6}','#[0-9A-F]{6}','#[0-9A-F]{6}','#[0-9A-F]{6}','#[0-9A-F]{6}'\]/gm)||[]).length;
+  assert.ok(count>=20,`expected 20+ themes, found ${count}`);
+  assert.ok(app.includes("toggle('glass'"), 'glass toggle missing');
+  assert.match(fs.readFileSync('web/index.html','utf8'),/href="theme\.css"/);
+  assert.match(fs.readFileSync('web/index.html','utf8'),/src="themes\.js"[\s\S]*src="app\.js"/);
+  assert.ok(app.includes("toggle('sounds'"), 'sound toggle missing');
+  for(const kind of ['drag','single_edit','double_edit','quick_reset','prefire','wall_replace','auto_build','floor_cone','mantle','gun_pullout','pickup']) assert.ok(fs.readFileSync('web/overlay.js','utf8').includes(`['${kind}',`),`${kind} missing from overlay board`);
+  const index=fs.readFileSync('web/index.html','utf8');
+  for(const page of [index,overlay]){assert.match(page,/href="effects\.css"/);assert.match(page,/src="particles\.js"/);assert.match(page,/src="select\.js"/);}
+  assert.doesNotMatch(index.slice(index.indexOf('boot-aaa'),index.indexOf('modal-root')),/<img/,'loading screen must not show the app icon');
+  assert.ok(themesJs.includes("'halloween':") && themesJs.includes("'special'"),'Halloween special theme missing');
+  for(const tool of ['loadouts','session','practice','notes','system']) assert.ok(fs.readFileSync('web/overlay.js','utf8').includes(`['${tool}',`),`${tool} tool missing`);
+  assert.ok(manager.includes("'set-role'"),'admin role control missing');
+  for(const view of ['training','journal','keybinds','system','help']){assert.ok(app.includes(`['${view}',`),`${view} missing from navigation`);assert.ok(app.includes(`view==='${view}'`),`${view} not routed`);}
+  assert.ok(app.includes("local('workspace_save'"),'page data must persist through the desktop app');
+  for(const marker of ["'theme-builder'","startTour","'weekly-report'","'drill-packs'","'routine-start'","'focus-mode'","'react'","'data-export'","drawCompare","sound_pack","layout==='compact'","new-dot"]) assert.ok(app.includes(marker),`${marker} missing`);
+  assert.ok(manager.includes('ownerCharts')&&manager.includes('data-audit-actor'),'manager charts or audit filter missing');
+  for(const id of ['winter','lunar','summer']) assert.ok(themesJs.includes(`'${id}':`),`${id} seasonal theme missing`);
+  assert.ok(fs.readFileSync('web/particles.js','utf8').includes('starfield'),'wallpapers missing');
+  assert.ok(fs.readFileSync('web/overlay.js','utf8').includes("invoke('quick_note'"),'overlay quick notes missing');
+  for(const marker of ['renderBanners','checkServerNotices','checkCrash','heatmap(','PLANS','journalInsights',"'journal-csv'",'AVATARS','data-beta-updates','pollBlock','scheduler()','soundsPanel','accent_cycle','text_scale']) assert.ok(app.includes(marker),`${marker} missing`);
+  assert.ok(manager.includes("'feedback-reply'")&&manager.includes("'maintenance'")&&manager.includes('poll_question'),'manager round-7 features missing');
+  assert.ok(themesJs.includes("'contrast':"),'accessibility themes missing');
+  assert.ok(fs.readFileSync('web/overlay.js','utf8').includes('data-mini'),'overlay mini timers missing');
+  console.log(`${count} themes and glass option present.`);
+}

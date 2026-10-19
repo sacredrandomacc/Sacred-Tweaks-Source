@@ -39,3 +39,7 @@ Original spec and quality reviews are retained in `REVIEW-SPEC.md` and `REVIEW-Q
 Not executed: Windows hooks/SendInput/Filter Keys/DPAPI, WebView2 renderer bridge startup, PowerShell/PyInstaller packaging, installer/portable bundle launches, real Fortnite settings and input, hosted HTTPS/Docker deployment, TLS renewals, hardware-specific CPU/GPU overhead, signing or antivirus reputation. No Windows executable, certified Fortnite version, FPS gain, input-latency gain, anti-ban guarantee or hosted service is claimed.
 
 Complete `WINDOWS-ACCEPTANCE.md` before release. `REQUIREMENTS.md` distinguishes completed source from external gates and deliberately limited implementations.
+
+## Windows build-log follow-up
+
+The first user-supplied Windows build log ran all 83 tests and failed one watchdog test before packaging. Its activation wait was only 50 ms, equal to the worker's idle poll interval; a scheduling delay could fail setup before expiration was tested. The test now observes fake input activation with an event under a long setup lease, shortens authorization to 80 ms, then observes release without frontend calls. It still asserts input release, disabled state and no automatic resume. Production macro/watchdog behavior is unchanged. All 83 tests and 30 repeated runs of the corrected watchdog test passed locally. A Windows rerun is still required.

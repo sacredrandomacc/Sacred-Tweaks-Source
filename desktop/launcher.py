@@ -52,7 +52,7 @@ def launch(mode="member"):
         native = NativeTools(base)
         logger.info('Native services ready')
         api = Api(mode, base, config["api_url"], native, allow_http=config.get("allow_local_http", False) is True)
-        window = webview.create_window("Sacred Tweaks Manager" if mode == "manager" else "Sacred Tweaks", url=str(root / "web" / "index.html"), js_api=api, width=1280, height=850, min_size=(900, 650), background_color="#090811")
+        window = webview.create_window("Sacred Tweaks Manager" if mode == "manager" else "Sacred Tweaks", url=str(root / "web" / "index.html"), js_api=api, width=1280, height=850, min_size=(900, 650), background_color="#111318")
         window.events.loaded += lambda: apply_window_icon(window, root)
         window.events.loaded += lambda: api._attach(window)
         window.events.minimized += lambda: api._emit({"minimized": True})
@@ -62,38 +62,34 @@ def launch(mode="member"):
             overlay_stop = threading.Event()
             overlay = {'window': None, 'controller': None}
 
-            def start_overlay_when_needed():
+            def create_overlay():
                 try:
                     probe = WindowsOverlayProbe(native.platform)
-                    while not overlay_stop.wait(.4):
-                        if not probe.is_game():
-                            continue
-                        if overlay_stop.is_set():
-                            return
-                        logger.info('Fortnite active; creating companion')
-                        bridge = OverlayBridge(api, base)
-                        companion = webview.create_window(
-                            'Sacred Tweaks • Companion', url=str(root / 'web' / 'overlay.html'),
-                            js_api=bridge, width=1020, height=640, min_size=(880, 560),
-                            hidden=True, frameless=True, easy_drag=False, on_top=True,
-                            background_color='#111722')
-                        controller = DesktopOverlayController(companion, window, bridge, probe)
-                        overlay.update(window=companion, controller=controller)
-                        companion.events.loaded += lambda: (logger.info('Companion ready'), controller.start())
-                        if companion.events.loaded.is_set():
-                            controller.start()
+                    logger.info('Creating hidden companion')
+                    bridge = OverlayBridge(api, base)
+                    companion = webview.create_window(
+                        'Sacred Tweaks • Companion', url=str(root / 'web' / 'overlay.html'),
+                        js_api=bridge, width=1200, height=740, min_size=(560, 360),
+                        hidden=True, frameless=True, easy_drag=False, on_top=True,
+                        background_color='#111318')
+                    controller = DesktopOverlayController(companion, window, bridge, probe)
+                    overlay.update(window=companion, controller=controller)
+                    companion.events.loaded += lambda: (logger.info('Companion ready'), controller.start())
+                    from desktop.desktop_overlay import WidgetBridge
+                    widget = webview.create_window(
+                        'Sacred Tweaks • Widgets', url=str(root / 'web' / 'widget.html'), js_api=WidgetBridge(bridge),
+                        width=380, height=44, hidden=True, frameless=True, easy_drag=False, on_top=True,
+                        focus=False, background_color='#0A1220')
+                    widget.events.loaded += lambda: controller.attach_widget(int(widget.native.Handle.ToInt64()))
+                    overlay['widget'] = widget
 
-                        def close_companion():
-                            if overlay_stop.is_set():
-                                return True
-                            threading.Thread(target=lambda: controller.hide(restore=True), daemon=True).start()
-                            return False
-
-                        companion.events.closing += close_companion
+                    def close_companion():
                         if overlay_stop.is_set():
-                            controller.close()
-                            companion.destroy()
-                        return
+                            return True
+                        threading.Thread(target=lambda: controller.hide(restore=True), daemon=True).start()
+                        return False
+
+                    companion.events.closing += close_companion
                 except Exception:
                     logger.exception('Companion failed to initialize')
 
@@ -103,9 +99,10 @@ def launch(mode="member"):
                     overlay['controller'].close()
                 if overlay['window']:
                     overlay['window'].destroy()
+                if overlay.get('widget'):
+                    overlay['widget'].destroy()
 
-            window.events.loaded += lambda: threading.Thread(target=start_overlay_when_needed,
-                                                               name='Sacred-companion-start', daemon=True).start()
+            create_overlay()
             window.events.closed += stop_overlay
         window.events.closed += api._close
         if smoke:
@@ -122,6 +119,13 @@ def launch(mode="member"):
     except Exception as exc:
         if 'logger' in locals():
             logger.exception('Startup failed')
+        try:
+            import traceback
+            crash_dir = Path(os.environ.get('LOCALAPPDATA', '.')) / 'SacredTweaks'
+            crash_dir.mkdir(parents=True, exist_ok=True)
+            (crash_dir / 'last-crash.txt').write_text(traceback.format_exc()[-6000:], encoding='utf-8')
+        except OSError:
+            pass
         if smoke:
             print(str(exc), file=sys.stderr)
             raise SystemExit(1)

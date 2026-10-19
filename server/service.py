@@ -22,27 +22,30 @@ import struct
 import threading
 import time
 from urllib.parse import parse_qs, urlsplit
+from .username_moderation import moderate_username
 
-VERSION = '0.1.0'
+VERSION = '0.7.0'
 FEATURES = ('single_edit', 'performance', 'measurements', 'themes', 'potato',
             'filter_keys', 'owner_presets', 'drag', 'advanced', 'profiles', 'beta')
-TIERS = ('Core', 'Plus', 'Pro', 'Elite')
-MIN_TIER = dict(zip(FEATURES, (0, 0, 0, 0, 1, 2, 2, 3, 3, 3, 3)))
-EXTENDED_MACROS = ('prefire', 'pickup', 'wall_replace', 'auto_build', 'mantle', 'quick_reset', 'floor_cone')
+TIERS = ('Core', 'Plus', 'Pro', 'Elite', 'Sacred')  # Historical tiers remain readable; new sales use Sacred.
+EXTENDED_MACROS = ('prefire', 'pickup', 'wall_replace', 'auto_build', 'mantle', 'quick_reset', 'floor_cone',
+                   'double_edit', 'gun_pullout')
 FEATURES += EXTENDED_MACROS
-MIN_TIER.update({name: 3 for name in EXTENDED_MACROS})
 LEASE_SECONDS = 25
 HEARTBEAT_SECONDS = 10
 
 
+REACTIONS = ('fire', 'heart', 'up', 'laugh', 'wow')
+
 class APIError(Exception):
-    def __init__(self, status, code, message, alert=None):
+    def __init__(self, status, code, message, alert=None, commit=False):
         self.status, self.code, self.message, self.alert = status, code, message, alert
+        self.commit = commit
         super().__init__(message)
 
 
-def fail(status, code, message, alert=None):
-    raise APIError(status, code, message, alert)
+def fail(status, code, message, alert=None, commit=False):
+    raise APIError(status, code, message, alert, commit)
 
 
 def _json(value):
@@ -203,9 +206,15 @@ class Service:
         with closing(self.connect()) as db:
             db.execute('PRAGMA journal_mode=WAL')
             version = db.execute('PRAGMA user_version').fetchone()[0]
-            if version > 1:
+            if version > 3:
                 raise RuntimeError('Database schema is newer than this service')
             db.executescript(Path(__file__).with_name('schema.sql').read_text())
+            columns = {row['name'] for row in db.execute('PRAGMA table_info(users)')}
+            for name, declaration in (('moderation_status', "TEXT NOT NULL DEFAULT 'clear'"),
+                                       ('moderation_category', 'TEXT'),
+                                       ('moderation_policy_version', 'INTEGER NOT NULL DEFAULT 1')):
+                if name not in columns:
+                    db.execute(f'ALTER TABLE users ADD COLUMN {name} {declaration}')
         self.path.chmod(0o600)
 
     def connect(self):
@@ -287,6 +296,10 @@ class Service:
                 name = str(data.get('username', ''))[:128].casefold()
                 self._limit(('auth_ip', str(ip)), 30, 60)
                 self._limit(('auth_user', _hash(name)), 10, 900)
+            elif path == '/v1/auth/refresh':
+                refresh_hint = str(data.get('refresh_token', ''))[:256]
+                self._limit(('refresh_ip', str(ip)), 30, 60)
+                self._limit(('refresh_token', _hash(refresh_hint)), 10, 900)
             elif path in ('/v1/auth/register', '/v1/license/validate'):
                 self._limit(('redeem', str(ip)), 30, 60)
             with closing(self.connect()) as db:
@@ -296,7 +309,7 @@ class Service:
                     db.commit()
                     return 200, body
                 except APIError as error:
-                    db.rollback()
+                    db.commit() if error.commit else db.rollback()
                     if error.alert:
                         uid, kind, message = error.alert
                         db.execute('INSERT INTO alerts(user_id,kind,message,created_at) VALUES (?,?,?,?)', (uid, kind, message, self.clock()))
@@ -339,7 +352,9 @@ class Service:
             fail(401, 'session_expired', 'Session expired. Sign in again.')
         user = db.execute('SELECT * FROM users WHERE id=?', (session['user_id'],)).fetchone()
         self._check_access(db, user)
-        if owner and user['role'] != 'owner':
+        # Staff routes: the owner and owner-appointed admins. Owner-only operations
+        # are re-checked inside _admin/_admin_user.
+        if owner and user['role'] not in ('owner', 'admin'):
             fail(403, 'owner_required', 'Owner authorization is required.')
         return user, session
 
@@ -357,39 +372,50 @@ class Service:
     def _snapshot(self, db, user):
         license = self._check_access(db, user)
         if user['role'] == 'owner':
-            return {'tier': 'Elite', 'permissions': {feature: True for feature in FEATURES}, 'overrides': {}, 'enforced': {}, 'welcome': {}}
+            return {'tier': 'Sacred', 'permissions': {feature: True for feature in FEATURES}, 'overrides': {}, 'enforced': {}, 'welcome': {}}
         tier = license['tier']
-        permissions = {feature: TIERS.index(tier) >= MIN_TIER[feature] for feature in FEATURES}
+        permissions = {feature: True for feature in FEATURES}
         for feature, value in json.loads(license['overrides']).items():
             if value is not None:
                 permissions[feature] = value
         welcome = db.execute("SELECT body FROM content WHERE kind='welcome' AND tier=? ORDER BY id DESC LIMIT 1", (tier,)).fetchone()
         welcome = json.loads(welcome['body']) if welcome else {}
         welcome.update(json.loads(license['welcome']))
-        return {'tier': tier, 'permissions': permissions, 'overrides': json.loads(license['overrides']), 'enforced': json.loads(license['enforced']), 'welcome': welcome}
+        return {'tier': 'Sacred', 'permissions': permissions, 'overrides': json.loads(license['overrides']), 'enforced': json.loads(license['enforced']), 'welcome': welcome}
 
     def _metadata(self, db, user, session):
         license = self._check_access(db, user)
         return {'user': {key: user[key] for key in ('id', 'username', 'role')}, **json.loads(session['snapshot']),
                 'expires_at': license['expires_at'] if license else None, 'lease_seconds': LEASE_SECONDS, 'heartbeat_seconds': HEARTBEAT_SECONDS}
 
-    def _session(self, db, user):
+    def _session(self, db, user, remember=False):
         now = self.clock()
         db.execute('UPDATE sessions SET revoked=1 WHERE user_id=? AND (lease_until<=? OR absolute_until<=?)', (user['id'], now, now))
         if db.execute('SELECT id FROM sessions WHERE user_id=? AND revoked=0', (user['id'],)).fetchone():
             fail(409, 'session_conflict', 'An authorized session is already active. Sign out there or contact the owner.',
                  (user['id'], 'session_conflict', 'A second session was rejected.'))
+        db.execute('UPDATE refresh_sessions SET revoked=1 WHERE user_id=? AND revoked=0', (user['id'],))
         token = secrets.token_urlsafe(32)
         sid = db.execute('INSERT INTO sessions(token_hash,user_id,created_at,renewed_at,lease_until,absolute_until,snapshot) VALUES (?,?,?,?,?,?,?)',
                          (_hash(token), user['id'], now, now, now + LEASE_SECONDS, now + 12 * 3600, _json(self._snapshot(db, user)))).lastrowid
         session = db.execute('SELECT * FROM sessions WHERE id=?', (sid,)).fetchone()
-        return {'token': token, **self._metadata(db, user, session)}
+        result = {'token': token, **self._metadata(db, user, session)}
+        if remember:
+            refresh = secrets.token_urlsafe(48)
+            db.execute('INSERT INTO refresh_sessions(token_hash,user_id,created_at,expires_at) VALUES (?,?,?,?)',
+                       (_hash(refresh), user['id'], now, now + 30 * 86400))
+            result['refresh_token'] = refresh
+        return result
 
     def _credentials(self, db, data):
         username = _text(data.get('username'), 'Username', 1, 128)
         user = db.execute('SELECT * FROM users WHERE username=?', (username,)).fetchone()
         if not self._password_verify(data.get('password'), user['password_hash'] if user else self.dummy_password) or not user:
             fail(401, 'invalid_credentials', 'Username or authentication credential is incorrect.')
+        if user['moderation_status'] == 'pending':
+            fail(403, 'username_review_pending', 'Access is paused while the owner reviews your username. Contact the owner for a status update.')
+        if user['moderation_status'] == 'rejected':
+            fail(403, 'username_review_rejected', 'Access is paused. Contact the owner to request a compliant username and account review.')
         return user
 
     def _consume_recovery(self, db, user, value):
@@ -427,6 +453,35 @@ class Service:
         now = self.clock()
         if method == 'GET' and path == '/v1/health':
             return {'status': 'ok', 'version': VERSION}
+        if method == 'GET' and path == '/v1/status':
+            row = db.execute("SELECT value FROM settings WHERE key='maintenance'").fetchone()
+            return {'maintenance': json.loads(row['value']) if row else {'enabled': False, 'message': ''}}
+        if method == 'GET' and path == '/v1/updates/beta':
+            best = None
+            for row in db.execute("SELECT body,created_at FROM content WHERE kind='release' ORDER BY id DESC LIMIT 200"):
+                body = json.loads(row['body'])
+                url, digest, version = body.get('url'), body.get('sha256'), body.get('version')
+                if (body.get('app', 'member') == 'member' and isinstance(url, str) and url.startswith('https://')
+                        and isinstance(digest, str) and re.fullmatch(r'[0-9a-fA-F]{64}', digest)
+                        and isinstance(version, str) and re.fullmatch(r'\d+(\.\d+){0,3}', version)):
+                    key = tuple(int(p) for p in version.split('.'))
+                    if best is None or key > best[0]:
+                        best = (key, {'version': version, 'url': url, 'sha256': digest.lower(), 'notes': str(body.get('notes', ''))[:2000], 'published_at': row['created_at']})
+            if best:
+                return best[1]
+            fail(404, 'no_update', 'No published update is available.')
+        if method == 'GET' and path == '/v1/updates/latest':
+            # Public: the auto-updater runs before sign-in. Only stable member-app releases
+            # with an HTTPS package and a SHA-256 are offered; Manager builds never are.
+            for row in db.execute("SELECT body,created_at FROM content WHERE kind='release' AND channel='stable' ORDER BY id DESC LIMIT 200"):
+                body = json.loads(row['body'])
+                url, digest, version = body.get('url'), body.get('sha256'), body.get('version')
+                if (body.get('app', 'member') == 'member' and isinstance(url, str) and url.startswith('https://')
+                        and isinstance(digest, str) and re.fullmatch(r'[0-9a-fA-F]{64}', digest)
+                        and isinstance(version, str) and re.fullmatch(r'\d+(\.\d+){0,3}', version)):
+                    return {'version': version, 'url': url, 'sha256': digest.lower(), 'notes': str(body.get('notes', ''))[:2000],
+                            'published_at': row['created_at']}
+            fail(404, 'no_update', 'No published update is available.')
         if method == 'POST' and path == '/v1/license/validate':
             license = db.execute("SELECT * FROM licenses WHERE key_hash=? AND status='active'", (_hash(_text(data.get('key'), 'License key', 16, 128)),)).fetchone()
             if not license or license['redeemed_at'] is not None:
@@ -434,19 +489,27 @@ class Service:
             return {'tier': license['tier'], 'duration_days': license['duration_days'], 'permanent': license['duration_days'] is None}
         if method == 'POST' and path == '/v1/auth/register':
             username, password = _username(data.get('username')), _password(data.get('password'))
+            moderation = moderate_username(username)
             device = self._device(data)
             license = db.execute('SELECT * FROM licenses WHERE key_hash=?', (_hash(_text(data.get('key'), 'License key', 16, 128)),)).fetchone()
             if not license or license['redeemed_at'] is not None or license['status'] != 'active':
                 fail(409, 'invalid_license', 'License is invalid, unavailable, or already redeemed.')
             expires = now + license['duration_days'] * 86400 if license['duration_days'] is not None else None
             db.execute('UPDATE licenses SET redeemed_at=?,expires_at=? WHERE id=? AND redeemed_at IS NULL', (now, expires, license['id']))
-            uid = db.execute('INSERT INTO users(username,password_hash,license_id,created_at) VALUES (?,?,?,?)',
-                             (username, self._password_hash(password), license['id'], now)).lastrowid
+            uid = db.execute('''INSERT INTO users(username,password_hash,license_id,created_at,moderation_status,
+                             moderation_category,moderation_policy_version) VALUES (?,?,?,?,?,?,?)''',
+                             (username, self._password_hash(password), license['id'], now, moderation.status,
+                              moderation.category, moderation.policy_version)).lastrowid
             self._set_device(db, uid, device)
             codes = self._recovery_codes(db, uid)
             user = db.execute('SELECT * FROM users WHERE id=?', (uid,)).fetchone()
+            if moderation.status == 'pending':
+                self._audit(db, uid, 'username_review_requested', 'user', uid,
+                            policy_version=moderation.policy_version, category=moderation.category)
+                return {'moderation_status': 'pending',
+                        'review_message': 'Your account is paused while the owner reviews this username. Contact the owner for updates or a compliant rename.'}
             self._audit(db, uid, 'register', 'user', uid)
-            return {**self._session(db, user), 'recovery_codes': codes}
+            return {**self._session(db, user, data.get('remember_me') is True), 'recovery_codes': codes}
         if method == 'POST' and path == '/v1/auth/login':
             user = self._credentials(db, data)
             self._check_access(db, user)
@@ -458,8 +521,27 @@ class Service:
                      (user['id'], 'device_mismatch', 'Login from an unregistered installation was rejected.'))
             if not user['device_hash']:
                 self._set_device(db, user['id'], device)
-            result = self._session(db, user)
+            result = self._session(db, user, data.get('remember_me') is True)
             self._audit(db, user['id'], 'login', 'user', user['id'])
+            return result
+        if method == 'POST' and path == '/v1/auth/refresh':
+            refresh = _text(data.get('refresh_token'), 'Refresh token', 32, 256)
+            row = db.execute('SELECT * FROM refresh_sessions WHERE token_hash=?', (_hash(refresh),)).fetchone()
+            if not row:
+                fail(401, 'refresh_invalid', 'Saved sign-in expired. Sign in again.')
+            if row['revoked'] or row['used_at'] is not None:
+                db.execute('UPDATE refresh_sessions SET revoked=1 WHERE user_id=?', (row['user_id'],))
+                db.execute('UPDATE sessions SET revoked=1 WHERE user_id=?', (row['user_id'],))
+                fail(401, 'refresh_replay', 'Saved sign-in was used more than once. Sign in again.', commit=True)
+            if row['expires_at'] <= now:
+                db.execute('UPDATE refresh_sessions SET revoked=1 WHERE id=?', (row['id'],))
+                fail(401, 'refresh_expired', 'Saved sign-in expired. Sign in again.')
+            user = db.execute('SELECT * FROM users WHERE id=?', (row['user_id'],)).fetchone()
+            self._check_access(db, user)
+            db.execute('UPDATE refresh_sessions SET used_at=?,revoked=1 WHERE id=?', (now, row['id']))
+            db.execute('UPDATE sessions SET revoked=1 WHERE user_id=? AND revoked=0', (user['id'],))
+            result = self._session(db, user, True)
+            self._audit(db, user['id'], 'session_refresh', 'user', user['id'])
             return result
         if method == 'POST' and path == '/v1/auth/recover':
             username, password = _text(data.get('username'), 'Username', 1, 128), _password(data.get('new_password'))
@@ -475,6 +557,7 @@ class Service:
                 fail(401, 'invalid_credentials', 'Username or recovery credential is incorrect or expired.')
             db.execute('UPDATE users SET password_hash=? WHERE id=?', (self._password_hash(password), user['id']))
             db.execute('UPDATE sessions SET revoked=1 WHERE user_id=?', (user['id'],))
+            db.execute('UPDATE refresh_sessions SET revoked=1 WHERE user_id=?', (user['id'],))
             db.execute('UPDATE reset_credentials SET used_at=? WHERE user_id=? AND used_at IS NULL', (now, user['id']))
             self._audit(db, user['id'], 'password_recovered', 'user', user['id'])
             return {'message': 'Password changed. Sign in again on your registered PC.'}
@@ -515,6 +598,7 @@ class Service:
             return self._metadata(db, user, session)
         if method == 'POST' and path == '/v1/auth/logout':
             db.execute('UPDATE sessions SET revoked=1 WHERE id=?', (session['id'],))
+            db.execute('UPDATE refresh_sessions SET revoked=1 WHERE user_id=?', (user['id'],))
             return {'message': 'Signed out.'}
         if method == 'POST' and path == '/v1/auth/recovery-codes':
             self._limit(('regenerate_recovery', uid), 10, 900)
@@ -522,8 +606,45 @@ class Service:
                 fail(401, 'invalid_credentials', 'Password is incorrect.')
             self._audit(db, uid, 'recovery_codes_replaced', 'user', uid)
             return {'recovery_codes': self._recovery_codes(db, uid)}
+        vote = re.fullmatch(r'/v1/content/(\d+)/vote', path)
+        if method == 'POST' and vote:
+            cid, option = int(vote[1]), data.get('option')
+            row = db.execute("SELECT body FROM content WHERE id=? AND kind='announcement'", (cid,)).fetchone()
+            poll = json.loads(row['body']).get('poll') if row else None
+            if not isinstance(poll, dict):
+                fail(404, 'not_found', 'Poll not found.')
+            if type(option) is not int or not 0 <= option < len(poll.get('options', [])):
+                fail(400, 'invalid_option', 'Choose one of the poll options.')
+            db.execute('INSERT INTO poll_votes(content_id,user_id,option,created_at) VALUES (?,?,?,?) '
+                       'ON CONFLICT(content_id,user_id) DO UPDATE SET option=excluded.option,created_at=excluded.created_at', (cid, uid, option, now))
+            item = {'id': cid, 'body': json.loads(row['body'])}
+            self._polls(db, [item], uid)
+            return item['poll_results']
+        if method == 'GET' and path == '/v1/feedback':
+            rows = db.execute('SELECT f.id,f.message,f.created_at,r.message AS reply,r.created_at AS replied_at FROM feedback f '
+                              'LEFT JOIN feedback_replies r ON r.feedback_id=f.id WHERE f.user_id=? ORDER BY f.id DESC LIMIT 50', (uid,))
+            return {'feedback': [dict(r) for r in rows]}
+        react = re.fullmatch(r'/v1/content/(\d+)/react', path)
+        if method == 'POST' and react:
+            cid, reaction = int(react[1]), data.get('reaction')
+            row = db.execute("SELECT id FROM content WHERE id=? AND kind='announcement'", (cid,)).fetchone()
+            if not row:
+                fail(404, 'not_found', 'Announcement not found.')
+            if reaction is None:
+                db.execute('DELETE FROM reactions WHERE content_id=? AND user_id=?', (cid, uid))
+            elif reaction in REACTIONS:
+                db.execute('INSERT INTO reactions(content_id,user_id,reaction,created_at) VALUES (?,?,?,?) '
+                           'ON CONFLICT(content_id,user_id) DO UPDATE SET reaction=excluded.reaction,created_at=excluded.created_at',
+                           (cid, uid, reaction, now))
+            else:
+                fail(400, 'invalid_reaction', 'Choose a listed reaction.')
+            return self._reactions(db, [cid], uid)[cid]
         if method == 'GET' and path == '/v1/content':
             content = self._content(db, history=False)
+            counts = self._reactions(db, [a['id'] for a in content['announcements']], uid)
+            for item in content['announcements']:
+                item['reactions'] = counts.get(item['id'], {'counts': {}, 'mine': None})
+            self._polls(db, content['announcements'], uid)
             snapshot = json.loads(session['snapshot'])
             if not snapshot['permissions']['owner_presets']:
                 content['presets'] = []
@@ -544,8 +665,32 @@ class Service:
                 if settings.get('advanced') or settings.get('preset') == 'custom':
                     self._require_feature(session, 'advanced')
             return {'settings': settings}
-        if path == '/v1/profiles' or re.fullmatch(r'/v1/profiles/\d+', path):
+        if path in ('/v1/profiles', '/v1/profiles/import') or re.fullmatch(r'/v1/profiles/\d+', path):
             self._require_feature(session, 'profiles')
+            if method == 'POST' and path == '/v1/profiles/import':
+                profiles = data.get('profiles')
+                if not isinstance(profiles, list) or not 1 <= len(profiles) <= 100:
+                    fail(400, 'invalid_profiles', 'Import must contain between 1 and 100 profiles.')
+                prepared, names = [], set()
+                for item in profiles:
+                    if not isinstance(item, dict) or set(item) != {'name', 'config'}:
+                        fail(400, 'invalid_profiles', 'Imported profile contains unsupported fields.')
+                    name = _text(item.get('name'), 'Profile name', 1, 80)
+                    config = _object(item.get('config'), 'Profile configuration', 16384)
+                    if set(config) != {'kind', 'config'} or config.get('kind') not in ('single_edit', 'drag', *EXTENDED_MACROS) or not isinstance(config.get('config'), dict):
+                        fail(400, 'invalid_profiles', 'Imported macro profile is unsupported.')
+                    if name.casefold() in names:
+                        fail(400, 'invalid_profiles', 'Imported profile names must be unique.')
+                    names.add(name.casefold())
+                    prepared.append((name, config))
+                for name, _ in prepared:
+                    if db.execute('SELECT 1 FROM profiles WHERE user_id=? AND lower(name)=lower(?)', (uid, name)).fetchone():
+                        fail(409, 'profile_conflict', 'A profile with an imported name already exists. Rename it before importing.')
+                created=[]
+                for name, config in prepared:
+                    pid=db.execute('INSERT INTO profiles(user_id,name,config,created_at) VALUES (?,?,?,?)', (uid,name,_json(config),now)).lastrowid
+                    created.append({'id':pid,'name':name,'config':config,'created_at':now})
+                return {'profiles':created}
             if method == 'GET' and path == '/v1/profiles':
                 return {'profiles': [{'id': r['id'], 'name': r['name'], 'config': json.loads(r['config']), 'created_at': r['created_at']} for r in db.execute('SELECT * FROM profiles WHERE user_id=? ORDER BY id', (uid,))]}
             if method == 'POST' and path == '/v1/profiles':
@@ -594,6 +739,30 @@ class Service:
                          (_hash(key), key[-6:], tier, days, self.clock(), fields.get('redeemed_at'), fields.get('expires_at'), fields.get('overrides', '{}'), fields.get('enforced', '{}'), fields.get('welcome', '{}'))).lastrowid
         return key, self._license(db.execute('SELECT * FROM licenses WHERE id=?', (lid,)).fetchone())
 
+    def _polls(self, db, items, uid=None):
+        for item in items:
+            poll = item['body'].get('poll') if isinstance(item.get('body'), dict) else None
+            if not isinstance(poll, dict):
+                continue
+            counts = [0] * len(poll.get('options', []))
+            for row in db.execute('SELECT option,COUNT(*) AS n FROM poll_votes WHERE content_id=? GROUP BY option', (item['id'],)):
+                if 0 <= row['option'] < len(counts):
+                    counts[row['option']] = row['n']
+            mine = db.execute('SELECT option FROM poll_votes WHERE content_id=? AND user_id=?', (item['id'], uid)).fetchone() if uid else None
+            item['poll_results'] = {'counts': counts, 'mine': mine['option'] if mine else None}
+
+    def _reactions(self, db, ids, uid=None):
+        result = {cid: {'counts': {}, 'mine': None} for cid in ids}
+        if not ids:
+            return result
+        marks = ','.join('?' * len(ids))
+        for row in db.execute(f'SELECT content_id,reaction,COUNT(*) AS n FROM reactions WHERE content_id IN ({marks}) GROUP BY content_id,reaction', ids):
+            result[row['content_id']]['counts'][row['reaction']] = row['n']
+        if uid is not None:
+            for row in db.execute(f'SELECT content_id,reaction FROM reactions WHERE user_id=? AND content_id IN ({marks})', [uid, *ids]):
+                result[row['content_id']]['mine'] = row['reaction']
+        return result
+
     def _content(self, db, history):
         result = {'presets': [], 'announcements': [], 'releases': [], 'welcomes': []}
         seen = set()
@@ -609,6 +778,40 @@ class Service:
 
     def _admin(self, db, owner, method, path, query, data):
         now, actor = self.clock(), owner['id']
+        if method == 'GET' and path == '/v1/admin/moderation':
+            queue = [dict(r) for r in db.execute("SELECT id,username,created_at,moderation_category,moderation_policy_version,moderation_status FROM users WHERE moderation_status='pending' ORDER BY created_at")]
+            return {'queue': queue}
+        moderation_match = re.fullmatch(r'/v1/admin/moderation/(\d+)', path)
+        if method == 'POST' and moderation_match:
+            uid = int(moderation_match[1])
+            target = db.execute('SELECT * FROM users WHERE id=?', (uid,)).fetchone()
+            if not target or target['moderation_status'] not in ('pending', 'rejected'):
+                fail(409, 'moderation_unavailable', 'This account does not need username review.')
+            action = data.get('action')
+            if action == 'reject':
+                reason = _text(data.get('reason'), 'Review reason', 3, 500)
+                db.execute("UPDATE users SET moderation_status='rejected' WHERE id=?", (uid,))
+                db.execute('UPDATE sessions SET revoked=1 WHERE user_id=?', (uid,))
+                db.execute('UPDATE refresh_sessions SET revoked=1 WHERE user_id=?', (uid,))
+                self._audit(db, actor, 'username_review_rejected', 'user', uid, reason=reason)
+                return {'moderation_status': 'rejected', 'message': 'Account remains paused. The user may contact the owner to request a compliant rename.'}
+            if action == 'rename':
+                username = _username(data.get('username'))
+                moderation = moderate_username(username)
+                if moderation.status != 'clear':
+                    fail(400, 'username_policy', 'Choose a username that follows the community rules.')
+                db.execute("UPDATE users SET username=?,moderation_status='clear',moderation_category=NULL,moderation_policy_version=? WHERE id=?",
+                           (username, moderation.policy_version, uid))
+                self._audit(db, actor, 'username_review_renamed', 'user', uid,
+                            old_username=target['username'], new_username=username, policy_version=moderation.policy_version)
+                return {'moderation_status': 'clear', 'message': 'Username updated and account access restored.'}
+            if action == 'approve':
+                reason = _text(data.get('reason'), 'Review reason', 3, 500)
+                db.execute("UPDATE users SET moderation_status='clear' WHERE id=?", (uid,))
+                self._audit(db, actor, 'username_review_exception_approved', 'user', uid,
+                            reason=reason, policy_version=target['moderation_policy_version'], category=target['moderation_category'])
+                return {'moderation_status': 'clear', 'message': 'Owner-reviewed exception approved. Account access restored.'}
+            fail(400, 'invalid_action', 'Choose approve, rename, or reject.')
         if method == 'GET' and path == '/v1/admin/overview':
             return {'users': db.execute('SELECT count(*) FROM users').fetchone()[0], 'licenses': db.execute('SELECT count(*) FROM licenses').fetchone()[0],
                     'active_sessions': db.execute('SELECT count(*) FROM sessions WHERE revoked=0 AND lease_until>? AND absolute_until>?', (now, now)).fetchone()[0],
@@ -622,7 +825,7 @@ class Service:
             if method == 'GET':
                 return self._user_details(db, uid)
             if method == 'POST':
-                return self._admin_user(db, actor, uid, data)
+                return self._admin_user(db, actor, uid, data, owner['role'])
         if method == 'GET' and path == '/v1/admin/licenses':
             return {'licenses': [self._license(r) for r in db.execute('SELECT * FROM licenses ORDER BY id DESC LIMIT 2000')]}
         if method == 'POST' and path == '/v1/admin/licenses':
@@ -630,6 +833,8 @@ class Service:
             if tier not in TIERS:
                 fail(400, 'invalid_tier', 'Unknown tier.')
             days = data.get('duration_days')
+            if tier == 'Sacred' and days not in (None, 30):
+                fail(400, 'invalid_duration', 'Sacred access is 30 days or lifetime.')
             if days is not None:
                 _number(days, 'Duration', 0.00001, 36500)
             count = _number(data.get('count', 1), 'Count', 1, 100)
@@ -656,29 +861,60 @@ class Service:
                 self._set_device(db, user['id'], transfer['device_hash'])
                 db.execute('UPDATE users SET last_transfer_at=? WHERE id=?', (now, user['id']))
                 db.execute('UPDATE sessions SET revoked=1 WHERE user_id=?', (user['id'],))
+                db.execute('UPDATE refresh_sessions SET revoked=1 WHERE user_id=?', (user['id'],))
             db.execute('UPDATE transfers SET status=?,resolved_at=?,resolved_by=? WHERE id=?', ('approved' if data['approve'] else 'rejected', now, actor, transfer['id']))
             self._audit(db, actor, 'transfer_approved' if data['approve'] else 'transfer_rejected', 'transfer', transfer['id'], user_id=user['id'])
             return {'message': 'Transfer approved.' if data['approve'] else 'Transfer rejected.'}
         if method == 'GET' and path == '/v1/admin/audit':
-            return {'audit': [{**dict(r), 'details': json.loads(r['details'])} for r in db.execute('SELECT * FROM audit ORDER BY id DESC LIMIT 1000')]}
+            return {'audit': [{**dict(r), 'details': json.loads(r['details'])} for r in db.execute('SELECT a.*,u.username AS actor_username,u.role AS actor_role FROM audit a LEFT JOIN users u ON a.actor_id=u.id ORDER BY a.id DESC LIMIT 1000')]}
         if method == 'GET' and path == '/v1/admin/content':
-            return self._content(db, history=True)
+            content = self._content(db, history=True)
+            counts = self._reactions(db, [a['id'] for a in content['announcements']])
+            for item in content['announcements']:
+                item['reactions'] = counts[item['id']]
+            self._polls(db, content['announcements'])
+            return content
         if method == 'POST' and path == '/v1/admin/content':
             kind, channel, tier = data.get('kind'), data.get('channel', 'stable'), data.get('tier')
             if kind not in ('preset', 'announcement', 'release', 'welcome') or channel not in ('stable', 'beta') or (tier is not None and tier not in TIERS) or (kind == 'welcome' and tier not in TIERS):
                 fail(400, 'invalid_input', 'Invalid content kind, channel or tier.')
             name, body = _text(data.get('name'), 'Name', 1, 120), _object(data.get('body'), 'Content body')
+            if 'poll' in body:
+                poll = body['poll']
+                if (kind != 'announcement' or not isinstance(poll, dict) or not isinstance(poll.get('options'), list)
+                        or not 2 <= len(poll['options']) <= 6):
+                    fail(400, 'invalid_poll', 'Polls need a question and 2-6 options on an announcement.')
+                body['poll'] = {'question': _text(poll.get('question'), 'Poll question', 1, 120),
+                                'options': [_text(o, 'Poll option', 1, 60) for o in poll['options']]}
             _validate_content_urls(body)
             version = db.execute('SELECT coalesce(max(version),0)+1 FROM content WHERE kind=? AND name=? AND channel=? AND tier IS ?', (kind, name, channel, tier)).fetchone()[0]
             cid = db.execute('INSERT INTO content(kind,name,body,channel,tier,version,created_at,author_id) VALUES (?,?,?,?,?,?,?,?)', (kind, name, _json(body), channel, tier, version, now, actor)).lastrowid
             self._audit(db, actor, 'content_published', 'content', cid, kind=kind, version=version)
             return {'id': cid, 'kind': kind, 'name': name, 'body': body, 'channel': channel, 'tier': tier, 'version': version, 'created_at': now}
         if method == 'GET' and path == '/v1/admin/feedback':
-            return {'feedback': [{**dict(r), 'diagnostics': json.loads(r['diagnostics']) if r['diagnostics'] else None} for r in db.execute('SELECT f.*,u.username FROM feedback f JOIN users u ON f.user_id=u.id ORDER BY f.id DESC LIMIT 1000')]}
+            return {'feedback': [{**dict(r), 'diagnostics': json.loads(r['diagnostics']) if r['diagnostics'] else None} for r in db.execute('SELECT f.*,u.username,r.message AS reply,r.created_at AS replied_at FROM feedback f JOIN users u ON f.user_id=u.id LEFT JOIN feedback_replies r ON r.feedback_id=f.id ORDER BY f.id DESC LIMIT 1000')]}
+        reply = re.fullmatch(r'/v1/admin/feedback/(\d+)/reply', path)
+        if method == 'POST' and reply:
+            fid, message = int(reply[1]), _text(data.get('message'), 'Reply', 1, 2000)
+            if not db.execute('SELECT id FROM feedback WHERE id=?', (fid,)).fetchone():
+                fail(404, 'not_found', 'Feedback not found.')
+            db.execute('INSERT INTO feedback_replies(feedback_id,message,author_id,created_at) VALUES (?,?,?,?) '
+                       'ON CONFLICT(feedback_id) DO UPDATE SET message=excluded.message,author_id=excluded.author_id,created_at=excluded.created_at', (fid, message, actor, now))
+            self._audit(db, actor, 'feedback_replied', 'feedback', fid)
+            return {'replied': True}
+        if path == '/v1/admin/settings' and method == 'POST' and owner['role'] != 'owner':
+            fail(403, 'owner_required', 'Only the owner can change owner settings.')
         if path == '/v1/admin/settings' and method in ('GET', 'POST'):
             if method == 'POST':
-                if not data or any(k not in ('transfer_cooldown_hours', 'reset_cooldown_hours') for k in data):
+                if not data or any(k not in ('transfer_cooldown_hours', 'reset_cooldown_hours', 'maintenance') for k in data):
                     fail(400, 'invalid_input', 'Unknown or missing setting.')
+                if 'maintenance' in data:
+                    m = data.pop('maintenance')
+                    if not isinstance(m, dict) or type(m.get('enabled')) is not bool:
+                        fail(400, 'invalid_input', 'Maintenance needs enabled true/false and a message.')
+                    value = {'enabled': m['enabled'], 'message': _text(m.get('message') or 'Scheduled maintenance.', 'Maintenance message', 1, 200)}
+                    db.execute("INSERT INTO settings(key,value) VALUES ('maintenance',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (_json(value),))
+                    self._audit(db, actor, 'maintenance_updated', 'settings', **value)
                 for key, value in data.items():
                     _number(value, key, 0, 8760)
                     db.execute('UPDATE settings SET value=? WHERE key=?', (_json(value), key))
@@ -686,22 +922,30 @@ class Service:
             return {r['key']: json.loads(r['value']) for r in db.execute('SELECT * FROM settings')}
         fail(404, 'not_found', 'Route not found.')
 
-    def _admin_user(self, db, actor, uid, data):
+    def _admin_user(self, db, actor, uid, data, actor_role='owner'):
         now = self.clock()
         user = db.execute('SELECT * FROM users WHERE id=?', (uid,)).fetchone()
         if not user:
             fail(404, 'not_found', 'User not found.')
         action = data.get('action')
-        if action not in ('rename', 'ban', 'unban', 'terminate_sessions', 'reset_device', 'reset_password'):
+        if action not in ('rename', 'ban', 'unban', 'terminate_sessions', 'reset_device', 'reset_password', 'set_role'):
             fail(400, 'invalid_action', 'Unknown account action.')
+        if actor_role != 'owner' and (user['role'] in ('owner', 'admin') or action == 'set_role'):
+            fail(403, 'owner_required', 'Only the owner can manage admin accounts.')
         if user['role'] == 'owner' and action in ('ban', 'reset_device', 'reset_password'):
             fail(403, 'owner_protected', 'This operation cannot target the owner account.')
         result = {'message': 'Account updated.'}
         details = {}
         if action == 'rename':
             username = _username(data.get('username'))
-            db.execute('UPDATE users SET username=? WHERE id=?', (username, uid))
-            details = {'old_username': user['username'], 'new_username': username}
+            moderation = moderate_username(username)
+            db.execute('UPDATE users SET username=?,moderation_status=?,moderation_category=?,moderation_policy_version=? WHERE id=?',
+                       (username, moderation.status, moderation.category, moderation.policy_version, uid))
+            if moderation.status != 'clear':
+                db.execute('UPDATE sessions SET revoked=1 WHERE user_id=?', (uid,))
+                db.execute('UPDATE refresh_sessions SET revoked=1 WHERE user_id=?', (uid,))
+            details = {'old_username': user['username'], 'new_username': username,
+                       'moderation_status': moderation.status, 'policy_version': moderation.policy_version}
         elif action == 'ban':
             reason = _text(data.get('reason'), 'Reason', 1, 500)
             until = data.get('until')
@@ -711,14 +955,28 @@ class Service:
             details = {'reason': reason, 'until': until}
         elif action == 'unban':
             db.execute('UPDATE users SET banned=0,ban_until=NULL,ban_reason=NULL WHERE id=?', (uid,))
+        elif action == 'set_role':
+            role = data.get('role')
+            if role not in ('admin', 'member'):
+                fail(400, 'invalid_role', 'Choose admin or member.')
+            if user['role'] == 'owner':
+                fail(403, 'owner_protected', 'The owner role cannot be changed.')
+            db.execute('UPDATE users SET role=? WHERE id=?', (role, uid))
+            # Sign the account out so the new role applies on the next login.
+            db.execute('UPDATE sessions SET revoked=1 WHERE user_id=?', (uid,))
+            db.execute('UPDATE refresh_sessions SET revoked=1 WHERE user_id=?', (uid,))
+            details = {'old_role': user['role'], 'new_role': role}
+            action = 'role_changed'
         elif action == 'terminate_sessions':
             db.execute('UPDATE sessions SET revoked=1 WHERE user_id=?', (uid,))
+            db.execute('UPDATE refresh_sessions SET revoked=1 WHERE user_id=?', (uid,))
         elif action == 'reset_device':
             self._cooldown(db, user, 'transfer')
             device = self._device(data) if data.get('device_id') else None
             self._set_device(db, uid, device)
             db.execute('UPDATE users SET last_transfer_at=? WHERE id=?', (now, uid))
             db.execute('UPDATE sessions SET revoked=1 WHERE user_id=?', (uid,))
+            db.execute('UPDATE refresh_sessions SET revoked=1 WHERE user_id=?', (uid,))
             db.execute("UPDATE transfers SET status='cancelled',resolved_at=?,resolved_by=? WHERE user_id=? AND status='pending'", (now, actor, uid))
         elif action == 'reset_password':
             self._cooldown(db, user, 'reset')
@@ -726,6 +984,7 @@ class Service:
             db.execute('UPDATE reset_credentials SET used_at=? WHERE user_id=? AND used_at IS NULL', (now, uid))
             db.execute('INSERT INTO reset_credentials(user_id,token_hash,expires_at) VALUES (?,?,?)', (uid, _hash(token), now + 900))
             db.execute('UPDATE sessions SET revoked=1 WHERE user_id=?', (uid,))
+            db.execute('UPDATE refresh_sessions SET revoked=1 WHERE user_id=?', (uid,))
             db.execute('UPDATE users SET last_reset_at=? WHERE id=?', (now, uid))
             result.update(reset_token=token, expires_at=now + 900)
         self._audit(db, actor, action, 'user', uid, **details)

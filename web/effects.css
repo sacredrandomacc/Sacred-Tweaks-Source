@@ -1,0 +1,53 @@
+/* Copyright (c) 2026 Sacred LLC. Shared by the main app and the companion:
+   custom dropdowns, particle canvas, special-theme badge, gradient text, tilt. */
+:root{--fx-text:var(--text,var(--ink));--fx-spring:cubic-bezier(.34,1.56,.64,1);--fx-out:cubic-bezier(.16,1,.3,1)}
+
+/* Particle canvas sits above the aurora glow, below all content. */
+.particle-canvas{position:fixed;inset:0;z-index:-1;pointer-events:none}
+
+/* Custom dropdown */
+.sx{position:relative;width:100%}
+.sx>select{position:absolute;inset:0;width:100%;height:100%;opacity:0;pointer-events:none}
+.sx-trigger{display:flex;align-items:center;gap:10px;width:100%;min-height:38px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;
+  background:linear-gradient(180deg,color-mix(in srgb,var(--fx-text) 5%,transparent),transparent),var(--sunken);color:var(--fx-text);font:inherit;font-size:12px;text-align:left;cursor:pointer;
+  transition:border-color .2s,box-shadow .3s,background .2s}
+.sx-trigger:hover{border-color:color-mix(in srgb,var(--accent) 55%,var(--line))}
+.sx.open .sx-trigger,.sx-trigger:focus-visible{outline:0;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent),0 0 20px -8px var(--accent)}
+.sx-value{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sx-chev{width:16px;height:16px;fill:none;stroke:var(--accent);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:transform .35s var(--fx-spring)}
+.sx.open .sx-chev{transform:rotate(180deg)}
+.sx>select:disabled+.sx-trigger{opacity:.5;cursor:not-allowed}
+.sx-list{position:fixed;z-index:1000;max-height:280px;overflow-y:auto;margin:0;padding:6px;list-style:none;border:1px solid color-mix(in srgb,var(--accent) 35%,var(--line));border-radius:12px;
+  background:color-mix(in srgb,var(--raised,#1b1d24) 82%,transparent);backdrop-filter:blur(22px) saturate(170%);-webkit-backdrop-filter:blur(22px) saturate(170%);
+  box-shadow:0 22px 50px -12px #000c,inset 0 1px 0 color-mix(in srgb,#fff 14%,transparent),0 0 30px -14px var(--accent);
+  color:var(--fx-text);font-size:12px;transform-origin:top center;animation:sx-in .28s var(--fx-spring) both;scrollbar-width:thin}
+.sx-list.up{transform-origin:bottom center}
+.sx-list.closing{animation:sx-out .15s ease-in forwards}
+.sx-list li{position:relative;padding:9px 12px 9px 30px;border-radius:8px;cursor:pointer;animation:sx-item .3s var(--fx-out) both;animation-delay:calc(var(--i,0) * 18ms);transition:background .15s,color .15s}
+.sx-list li.active{background:color-mix(in srgb,var(--accent) 18%,transparent)}
+.sx-list li[aria-selected=true]{color:var(--accent);font-weight:650}
+.sx-list li[aria-selected=true]:before{content:"";position:absolute;left:11px;top:50%;width:8px;height:8px;margin-top:-4px;border-radius:50%;background:var(--accent);box-shadow:0 0 10px var(--accent)}
+.sx-list li[aria-disabled=true]{opacity:.4;cursor:not-allowed}
+@keyframes sx-in{from{opacity:0;transform:translateY(-6px) scale(.96)}}
+@keyframes sx-out{to{opacity:0;transform:translateY(-4px) scale(.97)}}
+@keyframes sx-item{from{opacity:0;transform:translateX(-6px)}}
+
+/* Special themes */
+.theme-swatch.special{border-color:color-mix(in srgb,var(--sw-accent) 45%,var(--line))}
+.special-badge{position:absolute;top:-8px;right:8px;z-index:2;padding:3px 8px;border-radius:999px;font-size:8.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#120a04;
+  background:linear-gradient(110deg,var(--sw-accent),var(--sw-accent-2),var(--sw-accent));background-size:200% 100%;box-shadow:0 0 14px -2px var(--sw-accent);animation:badge-shine 3s linear infinite}
+@keyframes badge-shine{to{background-position:200% 0}}
+
+/* Gradient headline text */
+.gradient-text,.page-heading h1,.auth-art h1,.auth-form h2,.welcome h1,.hero h2,.access-card h2,.modal h2,.header h1,.intro h2{
+  background:linear-gradient(100deg,var(--fx-text) 15%,color-mix(in srgb,var(--accent) 70%,var(--fx-text)) 60%,var(--accent-2,var(--accent)) 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent}
+.panel-title h2,.section-label h2,.brand strong,.brand-name,.mech-col h3{background:linear-gradient(180deg,var(--fx-text) 30%,color-mix(in srgb,var(--accent) 40%,var(--fx-text)));-webkit-background-clip:text;background-clip:text;color:transparent}
+.page-heading h1{animation:rise .6s var(--fx-out) both}
+
+/* 3D tilt (motion.js sets --tilt-x/--tilt-y on hover). */
+.tilt.tilt,.tilt.tilt:hover{transform:perspective(900px) rotateX(var(--tilt-y,0deg)) rotateY(var(--tilt-x,0deg)) translateY(var(--lift,0px));transition:transform .4s var(--fx-out),border-color .3s,box-shadow .35s}
+.tilt.tilt:hover{--lift:-3px}
+
+@media(prefers-reduced-motion:reduce){.sx-list,.sx-list li{animation:none}.tilt.tilt.tilt{transform:none}}
+.no-motion .tilt.tilt.tilt,[data-reduced=true] .tilt.tilt.tilt,.lightweight .tilt.tilt.tilt{transform:none}

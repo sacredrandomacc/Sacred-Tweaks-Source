@@ -27,6 +27,10 @@ def atomic_json(path: Path, value):
 
 
 def _protect(data: bytes, decrypt=False) -> bytes:
+    return _dpapi(data, decrypt, local_machine=True)
+
+
+def _dpapi(data: bytes, decrypt=False, *, local_machine=False) -> bytes:
     if os.name != "nt":
         raise RuntimeError("Device registration requires Windows DPAPI.")
     class BLOB(ctypes.Structure):
@@ -41,17 +45,65 @@ def _protect(data: bytes, decrypt=False) -> bytes:
     if decrypt:
         fn = crypt.CryptUnprotectData
         fn.argtypes = [ctypes.POINTER(BLOB), ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, wintypes.DWORD, ctypes.POINTER(BLOB)]
-        ok = fn(ctypes.byref(source), None, None, None, None, 1, ctypes.byref(output))
+        ok = fn(ctypes.byref(source), None, None, None, None, 1 if local_machine else 0, ctypes.byref(output))
     else:
         fn = crypt.CryptProtectData
         fn.argtypes = [ctypes.POINTER(BLOB), wintypes.LPCWSTR, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, wintypes.DWORD, ctypes.POINTER(BLOB)]
-        ok = fn(ctypes.byref(source), "Sacred Tweaks installation", None, None, None, 1, ctypes.byref(output))
+        ok = fn(ctypes.byref(source), "Sacred Tweaks protected session", None, None, None, 1 if local_machine else 0, ctypes.byref(output))
     if not ok:
         raise ctypes.WinError(ctypes.get_last_error())
     try:
         return ctypes.string_at(output.pbData, output.cbData)
     finally:
         kernel.LocalFree(output.pbData)
+
+
+class SessionVault:
+    """Opt-in refresh token storage, encrypted to the current Windows user."""
+    def __init__(self, path: Path, protector=None):
+        self.path = Path(path)
+        self.protector = protector or (lambda data, decrypt=False: _dpapi(data, decrypt, local_machine=False))
+
+    def save(self, token: str):
+        if not isinstance(token, str) or not 32 <= len(token) <= 256:
+            raise ValueError("Invalid saved session token.")
+        encrypted = self.protector(token.encode("utf-8"))
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        fd, name = tempfile.mkstemp(prefix=self.path.name + ".", dir=self.path.parent)
+        try:
+            with os.fdopen(fd, "wb") as stream:
+                stream.write(encrypted)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(name, self.path)
+            try:
+                os.chmod(self.path, 0o600)
+            except OSError:
+                pass
+        finally:
+            if os.path.exists(name):
+                os.unlink(name)
+
+    def load(self):
+        try:
+            raw = self.path.read_bytes()
+            if not raw:
+                return None
+            token = self.protector(raw, decrypt=True).decode("utf-8")
+            if not 32 <= len(token) <= 256:
+                raise ValueError("Invalid saved session token.")
+            return token
+        except FileNotFoundError:
+            return None
+        except Exception:
+            self.clear()
+            return None
+
+    def clear(self):
+        try:
+            self.path.unlink()
+        except FileNotFoundError:
+            pass
 
 
 def load_device_id(data_dir: Path) -> str:

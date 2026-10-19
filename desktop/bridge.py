@@ -10,9 +10,10 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from desktop.storage import atomic_json, load_device_id
+from desktop.storage import SessionVault, atomic_json, load_device_id
+from desktop.profile_transfer import MAX_BYTES, encode_profile_bundle, validate_profile_bundle
 
-VERSION = "0.1.0"
+VERSION = "0.7.0"
 
 
 class ApiError(Exception):
@@ -37,7 +38,7 @@ def validate_api_url(url, allow_http=False):
 
 
 class Api:
-    def __init__(self, mode, data_dir, api_url, native, *, device_id=None, allow_http=False, transport=None, clock=time.monotonic):
+    def __init__(self, mode, data_dir, api_url, native, *, device_id=None, allow_http=False, transport=None, clock=time.monotonic, session_vault=None):
         self._mode = mode
         self._data_dir = Path(data_dir)
         self._api_url = validate_api_url(api_url, allow_http)
@@ -53,20 +54,62 @@ class Api:
         self._shutdown = threading.Event()
         self._window = None
         self._transport = transport or self._http
+        self._session_vault = session_vault or SessionVault(self._data_dir / "session.dpapi")
         self._thread = None
 
     def bootstrap(self):
         preferences = {}
         try:
             theme = json.loads((self._data_dir / "theme.json").read_text("utf-8"))
-            if (type(theme.get("intensity")) in {int, float} and 0 <= theme["intensity"] <= 1
+            animations = theme.get("animations_enabled", type(theme.get("intensity")) in {int, float} and theme.get("intensity", 1) > 0)
+            surface = theme.get("surface", "#111318")
+            text_color = theme.get("text_color", "#F2F0EA")
+            muted_color = theme.get("muted_color", "#AAA9AD")
+            if (type(animations) is bool and all(isinstance(color, str) and re.fullmatch(r"#[A-Fa-f0-9]{6}", color) for color in (surface,text_color,muted_color))
                     and type(theme.get("lightweight")) is bool
                     and isinstance(theme.get("accent"), str) and re.fullmatch(r"#[A-Fa-f0-9]{6}", theme["accent"])):
-                preferences["theme"] = {k: theme[k] for k in ("intensity", "lightweight", "accent")}
+                preferences["theme"] = {"animations_enabled": animations, "lightweight": theme["lightweight"], "accent": theme["accent"], "surface": surface, "text_color": text_color, "muted_color": muted_color}
                 preferences["reduced_motion"] = theme.get("reduced_motion") is True
+                preferences["theme"]["glass"] = theme.get("glass") is True
+                preferences["theme"]["sounds"] = theme.get("sounds") is not False
+                for key, allowed, default in (("particles", r"[a-z]{1,20}", "stardust"), ("font", r"[a-z]{1,20}", "system")):
+                    value = theme.get(key)
+                    preferences["theme"][key] = value if isinstance(value, str) and re.fullmatch(allowed, value) else default
+                for key, allowed, default in (("sound_pack", ("soft", "mechanical", "scifi"), "soft"), ("layout", ("comfortable", "compact"), "comfortable")):
+                    preferences["theme"][key] = theme.get(key) if theme.get(key) in allowed else default
+                preferences["theme"]["accent_cycle"] = theme.get("accent_cycle") is True
+                scale = theme.get("text_scale")
+                preferences["theme"]["text_scale"] = scale if type(scale) is int and 85 <= scale <= 130 else 100
+                volume = theme.get("sound_volume")
+                preferences["theme"]["sound_volume"] = volume if type(volume) is int and 0 <= volume <= 100 else 70
+                density = theme.get("particle_density")
+                preferences["theme"]["particle_density"] = density if type(density) is int and 10 <= density <= 100 else 50
+                preset = theme.get("preset")
+                preferences["theme"]["preset"] = preset if isinstance(preset, str) and re.fullmatch(r"[a-z0-9-]{1,32}", preset) else "custom"
         except (OSError, ValueError, AttributeError):
             pass
-        return {"ok": True, "data": {"mode": self._mode, "api_url": self._api_url, "device_id": self._device_id, "native": os.name == "nt", "version": VERSION, **preferences}}
+        data = {"mode": self._mode, "api_url": self._api_url, "device_id": self._device_id, "native": os.name == "nt", "version": VERSION, **preferences}
+        if self._mode == "member":
+            saved = self._session_vault.load()
+            if saved:
+                try:
+                    session = self._transport("POST", "/v1/auth/refresh", {"refresh_token": saved}, None)
+                    data["session"] = self._accept(session)
+                except ApiError as exc:
+                    if exc.code not in {"disconnected", "unavailable", "rate_limited"}:
+                        self._session_vault.clear()
+                    data["resume_failed"] = True
+                    data["resume_reason"] = exc.code
+                except Exception:
+                    self._session_vault.clear()
+                    data["resume_failed"] = True
+        return {"ok": True, "data": data}
+
+    def diagnostics_snapshot(self):
+        # Deliberately allowlisted: never serialize session, account, or user data.
+        return {"product": "Sacred Tweaks", "version": VERSION, "mode": self._mode,
+                "platform": "Windows" if os.name == "nt" else os.name,
+                "component": "desktop-client"}
 
     def _attach(self, window):
         self._window = window
@@ -113,6 +156,7 @@ class Api:
             self._deadline = 0
             self._native.stop(reason)
             self._native.set_authorization({}, {}, 0)
+            self._native.set_account(None)
             self._emit({"authorized": False, "reason": reason})
 
     def _accept(self, session):
@@ -124,12 +168,20 @@ class Api:
         token = session.get("token")
         if not token:
             raise ApiError("The service did not return a session token.")
-        safe = {k: v for k, v in session.items() if k != "token"}
+        safe = {k: v for k, v in session.items() if k not in {"token", "refresh_token"}}
+        refresh_token = session.get("refresh_token")
+        if refresh_token:
+            try:
+                self._session_vault.save(refresh_token)
+            except Exception:
+                # Authentication still works for this launch; persistence is optional.
+                pass
         with self._lock:
             self._generation += 1
             self._token, self._session = token, safe
             self._deadline = self._clock() + min(25, max(0, float(session.get("lease_seconds", 25))))
             self._native.stop("login")
+            self._native.set_account(safe.get('user', {}).get('id'))
             self._native.set_authorization(safe.get("permissions", {}), safe.get("enforced", {}), self._deadline)
         self._emit({"authorized": True, "reason": "signed_in"})
         return safe
@@ -159,8 +211,12 @@ class Api:
                     with self._lock:
                         epoch = self._generation
                     data["device_id"] = self._device_id
+                    remember = data.pop("remember_me", False) is True and self._mode == "member"
+                    data["remember_me"] = remember
                     started = self._clock()
                     result = self._transport(method, path, data, None)
+                    if not remember:
+                        self._session_vault.clear()
                     result["lease_seconds"] = max(0, float(result.get("lease_seconds", 25)) - (self._clock() - started))
                     with self._lock:
                         if epoch != self._generation:
@@ -177,6 +233,7 @@ class Api:
                 with self._lock:
                     token, request_generation = self._token, self._generation
                 if path == "/v1/auth/logout":
+                    self._session_vault.clear()
                     self._clear("Signed out", request_generation)
                 result = self._transport(method, path, data, token)
             return {"ok": True, "data": result}
@@ -229,6 +286,83 @@ class Api:
     def local(self, action, payload=None):
         try:
             payload = dict(payload or {})
+            if action in {"profile_export", "profile_import_preview"}:
+                with self._lock:
+                    if not self._token or self._clock() >= self._deadline:
+                        raise ApiError("Sign in to manage profiles.", "unauthorized", 401)
+                if not self._window:
+                    raise ValueError("The desktop window is unavailable.")
+                import webview
+                if action == "profile_export":
+                    data = encode_profile_bundle(payload.get("profiles", []))
+                    target = self._window.create_file_dialog(webview.SAVE_DIALOG,
+                        save_filename="Sacred-Tweaks-Profiles.json",
+                        file_types=("JSON files (*.json)",))
+                    if not target:
+                        return {"ok": True, "data": {"cancelled": True}}
+                    filename = target[0] if isinstance(target, (list, tuple)) else target
+                    Path(filename).write_bytes(data)
+                    return {"ok": True, "data": {"saved": True, "count": len(payload.get("profiles", []))}}
+                target = self._window.create_file_dialog(webview.OPEN_DIALOG,
+                    allow_multiple=False, file_types=("JSON files (*.json)",))
+                if not target:
+                    return {"ok": True, "data": {"cancelled": True}}
+                filename = target[0] if isinstance(target, (list, tuple)) else target
+                with Path(filename).open('rb') as stream:
+                    profiles = validate_profile_bundle(stream.read(MAX_BYTES + 1))
+                return {"ok": True, "data": {"profiles": profiles}}
+            if action in {"data_export", "data_import"}:
+                with self._lock:
+                    if not self._token or self._clock() >= self._deadline:
+                        raise ApiError("Sign in to back up your data.", "unauthorized", 401)
+                if not self._window:
+                    raise ValueError("The desktop window is unavailable.")
+                import webview
+                if action == "data_export":
+                    bundle = self._native.call("data_bundle", {})
+                    target = self._window.create_file_dialog(webview.SAVE_DIALOG, save_filename="Sacred-Tweaks-Backup.json",
+                                                             file_types=("JSON files (*.json)",))
+                    if not target:
+                        return {"ok": True, "data": {"cancelled": True}}
+                    filename = target[0] if isinstance(target, (list, tuple)) else target
+                    Path(filename).write_text(json.dumps(bundle, indent=1), encoding="utf-8")
+                    return {"ok": True, "data": {"saved": True, "sections": len(bundle["workspace"]) + 2}}
+                target = self._window.create_file_dialog(webview.OPEN_DIALOG, allow_multiple=False, file_types=("JSON files (*.json)",))
+                if not target:
+                    return {"ok": True, "data": {"cancelled": True}}
+                filename = target[0] if isinstance(target, (list, tuple)) else target
+                with Path(filename).open("rb") as stream:
+                    raw = stream.read(2 * 1024 * 1024 + 1)
+                if len(raw) > 2 * 1024 * 1024:
+                    raise ValueError("Backup file is too large.")
+                return {"ok": True, "data": self._native.call("data_restore", {"bundle": json.loads(raw.decode("utf-8"))})}
+            if action == "save_text":
+                if not self._window:
+                    raise ValueError("The desktop window is unavailable.")
+                name, text = payload.get("filename"), payload.get("text")
+                if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9 _.-]{1,60}\.(csv|txt)", name) or not isinstance(text, str) or len(text) > 2 * 1024 * 1024:
+                    raise ValueError("Invalid export.")
+                import webview
+                target = self._window.create_file_dialog(webview.SAVE_DIALOG, save_filename=name, file_types=("CSV or text (*.csv;*.txt)",))
+                if not target:
+                    return {"ok": True, "data": {"cancelled": True}}
+                Path(target[0] if isinstance(target, (list, tuple)) else target).write_text(text, encoding="utf-8-sig")
+                return {"ok": True, "data": {"saved": True}}
+            if action == "export_diagnostics":
+                with self._lock:
+                    if not self._token or self._clock() >= self._deadline:
+                        raise ApiError("Sign in to export diagnostics.", "unauthorized", 401)
+                if not self._window:
+                    raise ValueError("The desktop window is unavailable.")
+                import webview
+                target = self._window.create_file_dialog(webview.SAVE_DIALOG,
+                    save_filename="Sacred-Tweaks-Diagnostics.json",
+                    file_types=("JSON files (*.json)",))
+                if not target:
+                    return {"ok": True, "data": {"cancelled": True}}
+                filename = target[0] if isinstance(target, (list, tuple)) else target
+                Path(filename).write_text(json.dumps(self.diagnostics_snapshot(), indent=2), encoding="utf-8")
+                return {"ok": True, "data": {"saved": True}}
             if action == "export_recovery":
                 codes = payload.get("codes", [])
                 if not isinstance(codes, list) or not codes or any(not isinstance(c, str) or len(c) > 200 for c in codes):
@@ -257,7 +391,7 @@ class Api:
         self._shutdown.set()
         self._clear("Application closed")
         self._native.close()
-        if token:
+        if token and not self._session_vault.load():
             try:
                 self._transport("POST", "/v1/auth/logout", {}, token)
             except Exception:
